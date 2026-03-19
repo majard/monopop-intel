@@ -33,6 +33,7 @@ async function fetchProducts(
       `${process.env.NEXT_PUBLIC_API_URL}/search?q=${encodeURIComponent(query)}&store=${store}&sort=${sort}&page=${page}`,
       { cache: "no-store" }
     );
+    console.log('\n\n\nres: ', res);
     if (!res.ok) return null;
     return res.json();
   } catch {
@@ -71,6 +72,8 @@ export default async function Home({
 
   const data = await fetchProducts(q, store, sort, page);
   const totalPages = data?.total ? Math.ceil(data.total / (data.page_size ?? 10)) : null;
+
+  console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono">
