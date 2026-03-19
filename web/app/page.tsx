@@ -30,7 +30,7 @@ async function fetchProducts(
   if (!query) return null;
   try {
     const res = await fetch(
-      `http://localhost:8000/search?q=${encodeURIComponent(query)}&store=${store}&sort=${sort}&page=${page}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/search?q=${encodeURIComponent(query)}&store=${store}&sort=${sort}&page=${page}`,
       { cache: "no-store" }
     );
     if (!res.ok) return null;
