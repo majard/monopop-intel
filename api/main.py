@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Query
-from scraper.vtex import search, STORES, SORT_OPTIONS
+from scraper.vtex import search_async, STORES, SORT_OPTIONS
 
 app = FastAPI(
     title="monopop-intel",
@@ -8,19 +8,18 @@ app = FastAPI(
 
 
 @app.get("/search")
-def search_products(
+async def search_products(
     q: str = Query(..., description="Search term"),
-    store: str = Query("prezunic", description=f"Store name. Available: {list(STORES.keys())}"),
-    sort: str = Query("relevance", description=f"Sort order. Available: {list(SORT_OPTIONS.keys())}"),
+    store: str = Query("prezunic", description=f"Available: {list(STORES.keys()) + ['all']}"),
+    sort: str = Query("relevance", description=f"Available: {list(SORT_OPTIONS.keys())}"),
     page: int = Query(1, ge=1, description="Page number"),
 ):
-    result = search(q, store=store, sort=sort, page=page)
-    return result
+    return await search_async(q, store=store, sort=sort, page=page)
 
 
 @app.get("/stores")
 def list_stores():
-    return {"stores": list(STORES.keys())}
+    return {"stores": list(STORES.keys()) + ["all"]}
 
 
 @app.get("/sort-options")

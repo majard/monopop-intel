@@ -1,5 +1,8 @@
 import httpx
+import asyncio
 from typing import Optional
+
+ALL_STORE_FETCH_SIZE = 50  # busca fixa pra modo all
 
 STORES = {
     "prezunic": "https://www.prezunic.com.br",
@@ -34,45 +37,99 @@ def parse_product(product: dict, store: str) -> dict:
     }
 
 
-def search(
+async def fetch_store(
+    client: httpx.AsyncClient,
+    store: str,
+    query: str,
+    sort: str,
+    from_index: int,
+    to_index: int,
+) -> tuple[list[dict], int]:
+    base_url = STORES[store]
+    params = {"ft": query, "_from": from_index, "_to": to_index}
+    sort_value = SORT_OPTIONS.get(sort, "")
+    if sort_value:
+        params["O"] = sort_value
+
+    response = await client.get(
+        f"{base_url}/api/catalog_system/pub/products/search",
+        params=params,
+    )
+    response.raise_for_status()
+
+    # total vem no header: "0-9/47"
+    resources = response.headers.get("resources", "")
+    total = int(resources.split("/")[1]) if "/" in resources else 0
+
+    products = [parse_product(p, store) for p in response.json()]
+    return products, total
+
+
+async def search_async(
     query: str,
     store: str = "prezunic",
     sort: str = "relevance",
     page: int = 1,
 ) -> dict:
-    base_url = STORES.get(store)
-    if not base_url:
-        raise ValueError(f"Unknown store: {store}. Available: {list(STORES.keys())}")
+    if store == "all":
+        # busca page * PAGE_SIZE de cada loja pra garantir merge correto
+        async with httpx.AsyncClient(timeout=10) as client:
+            results = await asyncio.gather(*[
+                fetch_store(client, s, query, sort, 0, ALL_STORE_FETCH_SIZE - 1)
+                for s in STORES
+            ])
 
-    from_index = (page - 1) * PAGE_SIZE
-    to_index = from_index + PAGE_SIZE - 1
+        all_products = []
+        for products, _ in results:
+            all_products.extend(products)
 
-    params = {
-        "ft": query,
-        "_from": from_index,
-        "_to": to_index,
-    }
-
-    sort_value = SORT_OPTIONS.get(sort, "")
-    if sort_value:
-        params["O"] = sort_value
-
-    with httpx.Client(timeout=10) as client:
-        response = client.get(
-            f"{base_url}/api/catalog_system/pub/products/search",
-            params=params,
+        # sort local após merge
+        reverse = sort == "price_desc" or sort == "name_desc"
+        key = "name" if "name" in sort else "price"
+        if key == "price":
+            all_products = [p for p in all_products if p["price"] is not None]
+        all_products.sort(
+            key=lambda x: (not x["available"], x[key] or 0, x["product_id"].zfill(10), x["store"]),
+            reverse=reverse
         )
-        response.raise_for_status()
+        start = (page - 1) * PAGE_SIZE
+        end = start + PAGE_SIZE
+        page_results = all_products[start:end]
 
-    products = response.json()
-    return {
-        "store": store,
-        "query": query,
-        "sort": sort,
-        "page": page,
-        "page_size": PAGE_SIZE,
-        "results": [parse_product(p, store) for p in products],
-    }
+        return {
+            "store": "all",
+            "query": query,
+            "sort": sort,
+            "page": page,
+            "page_size": PAGE_SIZE,
+            "total": None,  # não calculável com precisão no modo all
+            "has_more": len(page_results) == PAGE_SIZE,
+            "results": page_results,
+        }
+
+    else:
+        from_index = (page - 1) * PAGE_SIZE
+        to_index = from_index + PAGE_SIZE - 1
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            products, total = await fetch_store(
+                client, store, query, sort, from_index, to_index
+            )
+
+        return {
+            "store": store,
+            "query": query,
+            "sort": sort,
+            "page": page,
+            "page_size": PAGE_SIZE,
+            "total": total,
+            "has_more": to_index < total - 1,
+            "results": products,
+        }
+
+
+def search(query: str, store: str = "prezunic", sort: str = "relevance", page: int = 1) -> dict:
+    return asyncio.run(search_async(query, store=store, sort=sort, page=page))
 
 
 if __name__ == "__main__":

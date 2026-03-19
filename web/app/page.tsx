@@ -16,6 +16,8 @@ interface SearchResult {
   sort: string;
   page: number;
   page_size: number;
+  total: number | null;
+  has_more: boolean;
   results: Product[];
 }
 
@@ -26,12 +28,12 @@ async function fetchProducts(
   page: number
 ): Promise<SearchResult | null> {
   if (!query) return null;
-
   try {
     const res = await fetch(
       `http://localhost:8000/search?q=${encodeURIComponent(query)}&store=${store}&sort=${sort}&page=${page}`,
       { cache: "no-store" }
     );
+    if (!res.ok) return null;
     return res.json();
   } catch {
     return null;
@@ -46,14 +48,14 @@ const SORT_LABELS: Record<string, string> = {
   name_desc: "z → a",
 };
 
-function sortUrl(current: Record<string, string>, sort: string) {
-  const params = new URLSearchParams({ ...current, sort, page: "1" });
-  return `?${params.toString()}`;
-}
+const STORE_LABELS: Record<string, string> = {
+  prezunic: "Prezunic",
+  zonasul: "Zona Sul",
+  all: "Todas as lojas",
+};
 
-function pageUrl(current: Record<string, string>, page: number) {
-  const params = new URLSearchParams({ ...current, page: String(page) });
-  return `?${params.toString()}`;
+function buildUrl(params: Record<string, string>) {
+  return `?${new URLSearchParams(params).toString()}`;
 }
 
 export default async function Home({
@@ -68,7 +70,7 @@ export default async function Home({
   const page = parseInt(params.page ?? "1");
 
   const data = await fetchProducts(q, store, sort, page);
-  const currentParams = { q, store, sort, page: String(page) };
+  const totalPages = data?.total ? Math.ceil(data.total / (data.page_size ?? 10)) : null;
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono">
@@ -84,8 +86,9 @@ export default async function Home({
           </p>
         </div>
 
-        {/* Search form */}
+        {/* Search form — hidden inputs preservam sort e store */}
         <form method="GET" className="flex gap-3 mb-10">
+          <input type="hidden" name="sort" value={sort} />
           <input
             type="text"
             name="q"
@@ -100,6 +103,7 @@ export default async function Home({
           >
             <option value="prezunic">Prezunic</option>
             <option value="zonasul">Zona Sul</option>
+            <option value="all">Todas as lojas</option>
           </select>
           <button
             type="submit"
@@ -115,9 +119,9 @@ export default async function Home({
             <div className="flex items-center gap-2 mb-4 flex-wrap">
               <span className="text-zinc-500 text-xs">ordenar:</span>
               {Object.entries(SORT_LABELS).map(([key, label]) => (
-                <a                
+                <a
                   key={key}
-                  href={sortUrl(currentParams, key)}
+                  href={buildUrl({ q, store, sort: key, page: "1" })}
                   className={`text-xs px-3 py-1 rounded border transition-colors ${
                     sort === key
                       ? "border-emerald-500 text-emerald-400"
@@ -131,29 +135,35 @@ export default async function Home({
 
             {/* Results count */}
             <p className="text-zinc-500 text-xs mb-4">
-              página {data.page} ·{" "}
+              {data.total ? `${data.total} resultado${data.total !== 1 ? "s" : ""} · ` : ""}
+              página {data.page}{totalPages ? ` de ${totalPages}` : ""} ·{" "}
               <span className="text-emerald-400">"{data.query}"</span> em{" "}
-              <span className="text-zinc-300">{data.store}</span>
+              <span className="text-zinc-300">{STORE_LABELS[data.store] ?? data.store}</span>
             </p>
 
             {/* Results */}
-            {data.results.length === 0 ? (
+            {!data.results || data.results.length === 0 ? (
               <p className="text-zinc-600 text-sm">nenhum resultado encontrado.</p>
             ) : (
               <div className="flex flex-col gap-3">
                 {data.results.map((product) => (
-                  <a                  
-                    key={product.product_id}
+                  <a
+                    key={`${product.store}-${product.product_id}`}
                     href={product.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="group flex items-center justify-between bg-zinc-900 border border-zinc-800 hover:border-emerald-500 rounded px-5 py-4 transition-colors"
                   >
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm text-zinc-100 group-hover:text-white">
                           {product.name}
                         </p>
+                        {store === "all" && (
+                          <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                            {STORE_LABELS[product.store] ?? product.store}
+                          </span>
+                        )}
                         {product.list_price > product.price && (
                           <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                             oferta
@@ -183,22 +193,45 @@ export default async function Home({
             )}
 
             {/* Pagination */}
-            <div className="flex items-center gap-3 mt-8">
+            <div className="flex items-center gap-2 mt-8 flex-wrap">
               {page > 1 && (
                 <a
-                  href={pageUrl(currentParams, page - 1)}
+                  href={buildUrl({ q, store, sort, page: String(page - 1) })}
                   className="text-xs px-4 py-2 rounded border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors"
                 >
-                  ← anterior
+                  ←
                 </a>
               )}
-              <span className="text-zinc-600 text-xs">página {page}</span>
-              {data.results.length === data.page_size && (
+
+              {totalPages ? (
+                [...Array(totalPages)].map((_, i) => {
+                  const p = i + 1;
+                  const isNear = Math.abs(p - page) <= 2 || p === 1 || p === totalPages;
+                  if (!isNear) return null;
+                  return (
+                    <a
+                      key={p}
+                      href={buildUrl({ q, store, sort, page: String(p) })}
+                      className={`text-xs px-3 py-2 rounded border transition-colors ${
+                        p === page
+                          ? "border-emerald-500 text-emerald-400"
+                          : "border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
+                      }`}
+                    >
+                      {p}
+                    </a>
+                  );
+                })
+              ) : (
+                <span className="text-zinc-600 text-xs">página {page}</span>
+              )}
+  
+              {data.has_more && (
                 <a
-                  href={pageUrl(currentParams, page + 1)}
+                  href={buildUrl({ q, store, sort, page: String(page + 1) })}
                   className="text-xs px-4 py-2 rounded border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors"
                 >
-                  próxima →
+                  →
                 </a>
               )}
             </div>
