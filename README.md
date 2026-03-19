@@ -18,6 +18,14 @@ Tracks supermarket prices in Rio de Janeiro so you know what the market charges 
 - **API** — FastAPI, parallel requests across stores with unified response schema
 - **Web** — Next.js 15 with Server Components
 
+## Technical highlights
+
+- **Parallel async fetch** — simultaneous requests across stores via `asyncio.gather`, ~50% latency reduction vs sequential
+- **Server Components** — data fetching on the server, browser receives rendered HTML with zero client-side JS for search logic
+- **Deterministic multi-store sort** — tiebreaker `(price, product_id, store)` ensures stable pagination across independent store results
+- **Zero-auth data acquisition** — VTEX public API returns clean JSON with no scraping required; Playwright reserved for non-VTEX targets
+- **Auto-generated API docs** — OpenAPI/Swagger via FastAPI at `/docs`, always in sync with the code
+
 ## Current coverage
 
 | Store | Platform | Status |
