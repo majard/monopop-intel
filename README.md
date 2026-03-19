@@ -1,6 +1,8 @@
 # monopop-intel
 
 Market price intelligence for the Monopop ecosystem.
+**Live:** [monopop-intel.vercel.app](https://monopop-intel.vercel.app)  
+**API:** [monopop-intel.up.railway.app/docs](https://monopop-intel.up.railway.app/docs)
 
 ## What it does
 
@@ -12,9 +14,9 @@ Tracks supermarket prices in Rio de Janeiro so you know what the market charges 
 
 ## Stack
 
-- **Scraper** — Python + httpx + asyncio (VTEX public API, parallel multi-store fetch)
-- **API** — FastAPI
-- **Web** — Next.js with Server Components
+- **Scraper** — Python + httpx + asyncio, leveraging publicly available VTEX e-commerce APIs for low-friction data acquisition
+- **API** — FastAPI, parallel requests across stores with unified response schema
+- **Web** — Next.js 15 with Server Components
 
 ## Current coverage
 
@@ -38,9 +40,13 @@ npm install
 npm run dev
 ```
 
-API: `http://localhost:8000/docs`
+API: `http://localhost:8000/docs`  
 Web: `http://localhost:3000`
+
+## Limitations
+
+Current coverage is limited to stores with publicly accessible APIs. Next steps include scraping-based and proxy-based ingestion for broader coverage.
 
 ## Status
 
-🌱 v0.1 — two supermarkets live, multi-store comparison, sort and pagination. Deploy coming soon.
+🌱 v0.1 — MVP built to validate architecture and data acquisition strategy. Two supermarkets live, multi-store comparison, sort and pagination.
