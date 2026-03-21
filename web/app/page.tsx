@@ -90,19 +90,19 @@ export default async function Home({
         </div>
 
         {/* Search form — hidden inputs preservam sort e store */}
-        <form method="GET" className="flex gap-3 mb-10">
+        <form method="GET" className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-10">
           <input type="hidden" name="sort" value={sort} />
           <input
             type="text"
             name="q"
             defaultValue={q}
             placeholder="arroz, feijão, óleo..."
-            className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-4 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-emerald-500"
+            className="w-full sm:flex-1 bg-zinc-900 border border-zinc-700 rounded px-4 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-emerald-500"
           />
           <select
             name="store"
             defaultValue={store}
-            className="bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+            className="w-full sm:w-auto bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
           >
             <option value="prezunic">Prezunic</option>
             <option value="zonasul">Zona Sul</option>
@@ -111,7 +111,7 @@ export default async function Home({
           </select>
           <button
             type="submit"
-            className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold px-5 py-2 rounded text-sm transition-colors"
+            className="shrink-0 bg-emerald-500 hover:bg-emerald-400 text-black font-bold px-5 py-2 rounded text-sm transition-colors"
           >
             buscar
           </button>
