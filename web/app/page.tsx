@@ -26,17 +26,17 @@ async function fetchProducts(
   store: string,
   sort: string,
   page: number
-): Promise<SearchResult | null> {
+): Promise<SearchResult | null | "error"> {
   if (!query) return null;
   try {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/search?q=${encodeURIComponent(query)}&store=${store}&sort=${sort}&page=${page}`,
       { cache: "no-store" }
     );
-    if (!res.ok) return null;
+    if (!res.ok) return "error";
     return res.json();
   } catch {
-    return null;
+    return "error";
   }
 }
 
@@ -51,6 +51,7 @@ const SORT_LABELS: Record<string, string> = {
 const STORE_LABELS: Record<string, string> = {
   prezunic: "Prezunic",
   zonasul: "Zona Sul",
+  hortifruti: "Hortifruti",
   all: "Todas as lojas",
 };
 
@@ -70,7 +71,9 @@ export default async function Home({
   const page = parseInt(params.page ?? "1");
 
   const data = await fetchProducts(q, store, sort, page);
-  const totalPages = data?.total ? Math.ceil(data.total / (data.page_size ?? 10)) : null;
+  const totalPages = data && data !== "error" && data.total
+    ? Math.ceil(data.total / (data.page_size ?? 10))
+    : null;
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono">
@@ -103,6 +106,7 @@ export default async function Home({
           >
             <option value="prezunic">Prezunic</option>
             <option value="zonasul">Zona Sul</option>
+            <option value="hortifruti">Hortifruti</option>
             <option value="all">Todas as lojas</option>
           </select>
           <button
@@ -113,7 +117,7 @@ export default async function Home({
           </button>
         </form>
 
-        {data && (
+        {data && data !== "error" && (
           <>
             {/* Sort */}
             <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -122,11 +126,10 @@ export default async function Home({
                 <a
                   key={key}
                   href={buildUrl({ q, store, sort: key, page: "1" })}
-                  className={`text-xs px-3 py-1 rounded border transition-colors ${
-                    sort === key
-                      ? "border-emerald-500 text-emerald-400"
-                      : "border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
-                  }`}
+                  className={`text-xs px-3 py-1 rounded border transition-colors ${sort === key
+                    ? "border-emerald-500 text-emerald-400"
+                    : "border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
+                    }`}
                 >
                   {label}
                 </a>
@@ -212,11 +215,10 @@ export default async function Home({
                     <a
                       key={p}
                       href={buildUrl({ q, store, sort, page: String(p) })}
-                      className={`text-xs px-3 py-2 rounded border transition-colors ${
-                        p === page
-                          ? "border-emerald-500 text-emerald-400"
-                          : "border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
-                      }`}
+                      className={`text-xs px-3 py-2 rounded border transition-colors ${p === page
+                        ? "border-emerald-500 text-emerald-400"
+                        : "border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
+                        }`}
                     >
                       {p}
                     </a>
@@ -225,7 +227,7 @@ export default async function Home({
               ) : (
                 <span className="text-zinc-600 text-xs">página {page}</span>
               )}
-  
+
               {data.has_more && (
                 <a
                   href={buildUrl({ q, store, sort, page: String(page + 1) })}
@@ -238,7 +240,13 @@ export default async function Home({
           </>
         )}
 
-        {!data && !q && (
+        {data === "error" && q && (
+          <p className="text-red-400 text-sm">
+            não foi possível conectar à API. verifique se o servidor está rodando.
+          </p>
+        )}
+
+        {data === null && !q && (
           <p className="text-zinc-600 text-sm">
             digite um produto pra começar.
           </p>

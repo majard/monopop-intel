@@ -7,6 +7,7 @@ ALL_STORE_FETCH_SIZE = 50  # busca fixa pra modo all
 STORES = {
     "prezunic": "https://www.prezunic.com.br",
     "zonasul": "https://www.zonasul.com.br",
+    "hortifruti": "https://www.hortifruti.com.br",
 }
 
 SORT_OPTIONS = {
