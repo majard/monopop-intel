@@ -10,7 +10,7 @@ Tracks supermarket prices in Rio de Janeiro so you know what the market charges 
 
 ## Why it exists
 
-[Monopop](https://github.com/mahjard/monopop) helps you manage what you have and what you buy. Intel tells you what it should cost. Together they close the loop: know your stock, know the market, buy smarter.
+[Monopop](https://github.com/majard/monopop) helps you manage what you have and what you buy. Intel tells you what it should cost. Together they close the loop: know your stock, know the market, buy smarter.
 
 ## Stack
 
