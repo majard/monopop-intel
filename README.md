@@ -32,6 +32,7 @@ Tracks supermarket prices in Rio de Janeiro so you know what the market charges 
 |---|---|---|
 | Prezunic | VTEX | ✅ Live |
 | Zona Sul | VTEX | ✅ Live |
+| Hortifruti | VTEX | ✅ Live |
 
 See [RADAR.md](./RADAR.md) for full market coverage roadmap.
 

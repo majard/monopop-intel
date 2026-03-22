@@ -59,6 +59,15 @@ interesting signal lives.
 
 ---
 
+### Hortifruti
+**URL:** hortifruti.com.br  
+**Platform:** VTEX (confirmed)  
+**Strategy:** `api:public`  
+**Status:** 🟢 Live  
+**Notes:** Premium FLV chain, also carries grocery items. VTEX confirmed via public API endpoint.
+
+---
+
 ### Guanabara
 **URL:** supermercadosguanabara.com.br  
 **Platform:** None — institutional site only  
@@ -159,7 +168,7 @@ partnership outreach, credibility for data collection agreements.
 
 ## Coverage Roadmap
 ```
-v0.1  ── Prezunic + Zona Sul (VTEX API) ✅
+v0.1  ── Prezunic + Zona Sul + Hortifruti (VTEX API) ✅
 v0.2  ── Guanabara (ocr:llm) + Mundial (Playwright)
 v0.3  ── Extra + SuperPrix + Carrefour + Supermarket (pending research)
 v0.4  ── Delivery proxies (iFood/Rappi)
