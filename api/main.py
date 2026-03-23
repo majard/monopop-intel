@@ -193,7 +193,8 @@ async def history_by_term(
         trend = None
         if len(series) >= 2:
             cutoff = (date.today() - timedelta(days=7)).isoformat()
-            past = next((s for s in series if s["date"] <= cutoff), None)
+            # Find the most recent point at or before 7 days ago
+            past = next((s for s in reversed(series) if s["date"] <= cutoff), None)
             if past and past["price"] and latest["price"]:
                 delta = (latest["price"] - past["price"]) / past["price"]
                 if delta > 0.02:
