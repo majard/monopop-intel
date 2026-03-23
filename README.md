@@ -124,9 +124,9 @@ DATABASE_URL	PostgreSQL connection string
 Status
 🌱 v0.1 — MVP: reactive search across 2 supermarkets, sort, pagination
 🌱 v0.2 — 3 stores live, SQLite reactive cache, price history foundation:
-PostgreSQL schema, daily cron, hourly retry, allow-list-driven scraping
 🌱 v0.3 — Price history read layer shipped: API endpoints + full history UI
   (`/history`, `/history/{term}`, `/history/{term}/{product_id}`)
+PostgreSQL schema, daily cron, hourly retry, allow-list-driven scraping
 Limitations
 Current coverage is limited to stores with publicly accessible VTEX APIs.
 Price history coverage is limited to allow-listed terms (~210 canonical terms
