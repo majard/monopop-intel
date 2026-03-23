@@ -8,17 +8,10 @@ Update as decisions get made.
 
 ## Context
 
-The current stack is a FastAPI backend with parallel async scraping via httpx + asyncio,
+The stack is a FastAPI backend with parallel async scraping via httpx + asyncio,
 hitting VTEX public APIs for Prezunic, Zona Sul, and Hortifruti. Results are served
-directly to a Next.js 15 frontend with no caching or persistence layer.
-
-Two problems this creates:
-- Every search hits the VTEX API live. VTEX responses are frail — timeouts happen,
-  empty results happen, and there's no fallback.
-- No price history. Every search result is ephemeral.
-
-The data layer we're designing addresses both, but they're separate concerns
-with different schemas and different consumers. We're building them separately for now.
+to a Next.js 15 frontend with a SQLite reactive cache layer and a PostgreSQL
+price history layer.
 
 ---
 
@@ -49,16 +42,16 @@ TTL risks serving a full day of stale prices depending on when the user searches
 relative to when prices were last updated. 4h is conservative enough to be safe,
 loose enough to absorb normal traffic without hammering VTEX.
 
-**Fallback behavior (not yet implemented in v1):** When a cache row is stale,
+**Fallback behavior (not yet implemented):** When a cache row is stale,
 attempt a live VTEX call first. If VTEX succeeds, update the row and return fresh.
 If VTEX fails (timeout, empty result, error), return the stale row anyway with a
 `stale: true` flag. The cache is a safety net, not just a performance optimization.
 This means rows are never deleted solely because they're old — only replaced by
 a successful fresh scrape.
 
-**v1 behavior (current):** Passive TTL only. Stale rows are deleted on read.
-No fallback to stale data on VTEX failure. This is good enough to ship and test
-the wiring. The fallback behavior is the meaningful upgrade.
+**Current behavior (v1):** Passive TTL only. Stale rows are deleted on read.
+No fallback to stale data on VTEX failure. This is good enough for MVP.
+The fallback behavior is the meaningful v2 upgrade.
 
 ### Cache key design
 Key is `SHA-256(store:normalized_query:sort:page)`. All four parameters are
@@ -66,43 +59,34 @@ included because `prezunic:arroz:price_asc:1` and `prezunic:arroz:relevance:1`
 are different result sets.
 
 Query normalization: lowercase, strip accents, strip non-alphanumeric, collapse
-whitespace. Adapted from the similarity utils in the Monopop app.
+whitespace. Rewritten in Python from the similarity utils in the Monopop app.
 
 The key is a hash (not the raw string) for consistent length and to avoid
 edge cases with special characters in SQLite primary keys.
 
-### Allow-list (not yet implemented)
-**Open: allow-list design.**
+### Allow-list
+~210 canonical product terms in `api/allow_list.json`, version-controlled.
+The allow-list is a **reject filter**, not a normalization target. A query
+that matches "arroz" is cached under its normalized form ("arroz tio joao",
+"arroz tipo 1"), not collapsed to "arroz". Brand and variant intent is preserved.
+The allow-list only answers: "is this query cacheable at all?"
 
-The key space is unbounded because queries are free text. Without a filter,
-a malicious or careless client could generate infinite unique cache keys,
-growing the DB indefinitely. This is sometimes called cache flooding.
+Per-term `max_results` field controls how many products the cron fetches
+for that term. Defaults to 50. High-volume terms (leite, frango, cerveja)
+are set higher.
 
-Proposed mitigation: an allow-list of ~200–250 canonical product terms stored
-in a flat JSON file (`api/allow_list.json`), version-controlled. Before caching,
-the query is matched against the allow-list using fuzzy similarity (same
-`calculateSimilarity` logic from Monopop). If no match is found above a
-confidence threshold, the query passes through live but is not cached.
+**Open: allow-list wiring.** The allow-list exists and drives the cron but
+is not yet wired into the reactive cache. Unbounded key growth (cache flooding)
+is still possible from the search endpoint. Wiring the fuzzy filter is the
+next cache upgrade.
 
-Key design decision: the allow-list is a **reject filter**, not a normalization
-target. A query that matches "arroz" is cached under its normalized form
-("arroz tio joao", "arroz tipo 1"), not collapsed to "arroz". Brand and
-variant intent is preserved. The allow-list only answers: "is this query
-cacheable at all?"
-
-**Open: threshold value.** Monopop uses 0.55 for product matching. The allow-list
-use case may want a lower threshold (more permissive) since we're just
-pattern-matching against broad category terms, not identifying specific products.
-
-**Open: allow-list contents.** Starting point is the personal shopping list
-(~110 items). Needs expansion to ~220–250 to cover ~90% of Brazilian household
-searches. Categories: grãos/massas, hortifruti, proteínas, laticínios/frios,
-condimentos/temperos, bebidas, limpeza, higiene, pet. Full list TBD.
+**Open: threshold value.** Monopop uses 0.55 for product matching. The
+allow-list use case may want a lower threshold since we're pattern-matching
+against broad category terms, not specific products.
 
 **Open: store-term affinity.** Some terms are only meaningful for specific
-stores — FLV items (quiabo, açaí, chuchu) are primarily Hortifruti.
-The allow-list could carry metadata indicating which stores to query per term,
-so the cron doesn't make pointless requests. Low priority for now.
+stores. The allow-list could carry metadata indicating which stores to query
+per term. Low priority.
 
 ---
 
@@ -113,78 +97,134 @@ A persistent record of prices over time. Feeds future analytics, inflation
 tracking, and the cross-reference engine (top-down vs bottom-up prices).
 Not a cache — rows are never invalidated, only appended.
 
-### Schema (open)
-Normalized, not blob. Each price observation is its own row. This makes
-time-series queries possible without deserializing JSON.
+Full design in `SPEC-price-history.md`.
 
+### Schema (PostgreSQL on Railway)
+Normalized — each price observation is its own row.
+
+```sql
+products(id, vtex_product_id, store, name, brand, ean,
+         category, category_path, measurement_unit, unit_multiplier, url)
+
+price_points(id, product_id, term, price, list_price, available, scraped_at)
+
+scrape_log(id, term, store, status, error, scraped_at)
 ```
-products(id, vtex_product_id, store, name, brand, ean, url)
-price_points(id, product_id, price, list_price, available, scraped_at)
-```
 
-This is structurally different from the cache even though the underlying
-data is the same. The cache stores search result blobs for fast retrieval.
-The history stores individual product observations for analysis.
+### Cron strategy
+`api/cron.py` — iterates `allow_list.json`, calls `fetch_all()` per term × store,
+writes to PostgreSQL via `history_writer.py`. Runs daily via GitHub Actions.
+Retry mode (`python cron.py --retry`) re-attempts failed term × store pairs
+from the last 24h.
 
-They will overlap in practice — the cron and reactive cache will both observe
-the same products. That overlap is acceptable for now. Unifying them is a v2
-concern.
+`fetch_all()` in `vtex.py` is the cron's entry point into the scraper —
+bypasses `search_async` pagination (PAGE_SIZE=10) and fetches in batches
+of 50 (VTEX max per request) up to `max_results`.
 
-### Cron strategy (not yet implemented)
-GitHub Actions scheduled workflow, running once or twice daily against
-a fixed list of terms from the allow-list. Results written to the history
-DB (PostgreSQL on Railway, not SQLite — needs to persist across runs).
-
-Sort order for cron: price_asc only. History doesn't care about display
-order — it cares about the cheapest available price at a given moment.
-The sort dimension disappears from the history schema.
-
-Results per term: full 50-result pages (VTEX max), up to ~5 pages.
-Rationale: searches like "ovos" return a lot of noise (macarrão com ovos,
-etc.) — more results gives the post-processing step more signal to work with.
-
-**Open: noise filtering.** The VTEX full-text search returns semantically
-adjacent results that aren't the target product. "Ovos" returns egg pasta.
-This needs either query refinement (VTEX category filters, if supported)
-or post-processing before writing to history. Not a cache problem — a
-search quality problem. Needs its own design pass.
+Sort order: `price_asc` only. History doesn't care about display order.
 
 ### Retention
-90 days. Enough for inflation signal and seasonal variation.
-Max 2 observations per product per day (one per cron run), enforced by
-upsert logic on (product_id, date(scraped_at)).
-After 90 days, rows are deleted in batch (nightly cleanup job or cron).
+90 days. Cleanup runs as part of the daily cron.
 
-### Size estimate (3 stores, 250 terms, 50 results, 2x daily, 90 days)
+### Size estimate (3 stores, 210 terms, avg 60 results, 1x daily, 90 days)
 ```
-250 terms × 3 stores × 50 products × 2 daily × 90 days = ~6.75M price_point rows
-At ~50 bytes per row: ~340MB
-products table: ~37,500 rows, negligible
-Total: ~340MB — manageable in PostgreSQL, borderline for SQLite
+210 terms × 3 stores × 60 products × 90 days = ~3.4M price_point rows
+At ~60 bytes/row: ~200MB
+products table: ~38,000 rows, negligible
+Total: ~200MB — well within PostgreSQL free tier on Railway
 ```
-This estimate assumes full allow-list coverage and zero deduplication.
-Real-world number will be lower (not every term returns 50 unique products,
-deduplication by EAN will collapse variants).
 
 ---
 
-## What's Shipped (v1)
+## VTEX API findings
 
-- `cache.py` — SQLite cache layer with 4h passive TTL, SHA-256 key,
-  query normalization, startup purge of expired rows.
-- `main.py` — FastAPI lifespan initializes DB, `/search` endpoint
-  wired with cache-aside pattern. Response includes `_cache` metadata block.
+Observations from live data across Prezunic, Zona Sul, and Hortifruti.
 
-v1 is correct for what it does. The allow-list and fallback behavior
-are the meaningful upgrades. Test and commit v1 before building further.
+**Encoding constraint:** httpx re-encodes spaces as `+` in query params
+(application/x-www-form-urlencoded spec). VTEX rejects `+` in the `ft`
+param with "Bad Request! Scripts are not allowed!". The URL must be built
+manually using `urllib.parse.quote()` to preserve `%20`. Documented in
+`vtex.py` with a comment — do not revert to httpx params dict.
+
+**Category taxonomy:** Consistently populated across all three stores but
+with different taxonomies per store. Same product category, three names:
+- Prezunic: "Molho De Tomate"
+- Zona Sul: "Molhos"
+- Hortifruti: "Atomatados e Molhos"
+
+Cross-store category filtering will need a mapping layer. For MVP, filter
+per-store only. `category_path` (full path string) is stored for future use.
+
+**Hortifruti brand field:** Unreliable — Hortifruti sets `brand: "Hortifruti"`
+on all products regardless of actual brand. Barilla, Pomarola, and other
+third-party brands all show as "Hortifruti". Brand is only trustworthy for
+Prezunic and Zona Sul.
+
+**EAN:** Reliable on Prezunic and Zona Sul. Sparse on Hortifruti — many
+items have empty EAN, particularly fresh/weighted products. Cross-store
+product deduplication via EAN works when populated but cannot be enforced
+as a constraint. `UNIQUE(vtex_product_id, store)` is the deduplication key.
+
+**measurement_unit / unit_multiplier:** Both fields are present on all
+items. For packaged discrete goods across all three stores: `un` / `1.0`.
+Hortifruti weighted items use `kg` with a fractional multiplier (e.g. `0.2`
+for a 200g item sold by weight). `price / unitMultiplier` gives price per
+base unit for these items without additional scraping. Prezunic and Zona Sul
+do not expose weight data at API level for packaged goods — name parsing
+will be required for those (size appears consistently in product names:
+"Arroz Tio João 5kg").
+
+**VTEX full-text search noise:** Permissive matching returns semantically
+adjacent results. "ovo" returns egg pasta. "aceto balsamico" does not match
+"vinagre balsâmico" — suggests VTEX may have synonym handling or stemming
+that is not publicly documented. Worth investigating VTEX search API docs.
+For MVP: store everything, filter at display time via category.
 
 ---
 
-## Open Questions (summary)
+## What's Shipped
 
-1. Allow-list: final term list, threshold value, store affinity metadata
-2. Fallback behavior: stale cache on VTEX failure (Layer 1 upgrade)
-3. Noise filtering: post-processing VTEX results before caching/storing
-4. History DB: PostgreSQL schema, Railway setup, cron workflow
-5. Normalization: port `preprocessName` from Monopop or rewrite in Python
-6. Unification: cache + history as one store (deferred to v2)
+### v0.1 — Reactive cache
+- `cache.py` — SQLite cache layer, 4h passive TTL, SHA-256 key, startup purge
+- `main.py` — FastAPI lifespan initializes DB, `/search` endpoint with
+  cache-aside pattern, `_cache` metadata block in response
+- `scraper/vtex.py` — parallel async VTEX scraping, httpx + asyncio,
+  percent-encoding fix for `ft` param
+
+### v0.2 — Price history foundation
+- `scraper/vtex.py` — `parse_product` extended with `category`, `category_path`,
+  `measurement_unit`, `unit_multiplier`; `fetch_all()` added for cron use
+- `db.py` — asyncpg connection pool, PostgreSQL schema init (products,
+  price_points, scrape_log)
+- `history_writer.py` — `upsert_products()`, `insert_price_points()`,
+  `log_scrape()`
+- `cron.py` — allow-list iteration, multi-page fetching via `fetch_all()`,
+  retry mode for failed terms
+- `allow_list.json` — ~210 canonical terms across 9 categories, per-term
+  `max_results`
+- `SPEC-price-history.md` — full feature spec
+
+---
+
+## Open Questions
+
+1. **Allow-list wiring into cache** — fuzzy filter on `/search` to prevent
+   cache flooding. Threshold value TBD.
+
+2. **Cache fallback on VTEX failure** — serve stale data with `stale: true`
+   flag instead of deleting on TTL expiry.
+
+3. **Cross-store category mapping** — Prezunic/Zona Sul/Hortifruti use
+   different category names for the same products. Mapping layer needed
+   for unified filtering.
+
+4. **Cron parallelization** — currently sequential per term × store.
+   `asyncio.gather` + semaphore would cut runtime ~3x. Low priority until
+   runtime becomes a problem.
+
+5. **Unification of cache and history** — deferred to v2. Both layers
+   observe the same products but serve different consumers.
+
+6. **VTEX synonym/stemming behavior** — "aceto balsamico" vs "vinagre
+   balsâmico" mismatch suggests undocumented search behavior. Worth
+   investigating VTEX Intelligent Search documentation.

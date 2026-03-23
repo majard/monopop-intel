@@ -8,6 +8,8 @@ interface Product {
   list_price: number | null;
   available: boolean;
   url: string;
+  measurement_unit: string | null;
+  unit_multiplier: number | null;
 }
 
 interface SearchResult {
