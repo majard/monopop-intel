@@ -127,11 +127,17 @@ async def search_async(
                 *[
                     fetch_store(client, s, query, sort, 0, ALL_STORE_FETCH_SIZE - 1)
                     for s in STORES
-                ]
+                ],
+                return_exceptions=True
             )
 
         all_products = []
-        for products, _ in results:
+        for i, result in enumerate(results):
+            store_name = list(STORES.keys())[i]
+            if isinstance(result, Exception):
+                print(f"[warning] Failed to fetch from {store_name}: {result}")
+                continue
+            products, _ = result
             all_products.extend(products)
 
         # sort local após merge
