@@ -68,7 +68,8 @@ async def get_cached(query_key: str, db_path: str = DB_PATH) -> dict[str, Any] |
         # Passive invalidation: delete stale row on read
         async with aiosqlite.connect(db_path) as db:
             await db.execute(
-                "DELETE FROM price_cache WHERE query_key = ?", (query_key,)
+                "DELETE FROM price_cache WHERE query_key = ? AND cached_at = ?",
+                (query_key, row["cached_at"]),
             )
             await db.commit()
         return None

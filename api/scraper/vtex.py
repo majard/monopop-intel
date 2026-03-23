@@ -88,19 +88,32 @@ async def search_async(
             all_products.extend(products)
 
         # sort local após merge
-        reverse = sort == "price_desc" or sort == "name_desc"
-        key = "name" if "name" in sort else "price"
+        # Derive primary sort key only when sort explicitly contains "price" or "name"
+        if "price" in sort:
+            key = "price"
+        elif "name" in sort:
+            key = "name"
+        else:
+            key = None
+        
+        # Only filter out products with None price when sort explicitly requests price ordering
         if key == "price":
             all_products = [p for p in all_products if p["price"] is not None]
-        all_products.sort(
-            key=lambda x: (
-                not x["available"],
-                x[key] or 0,
-                x["product_id"].zfill(10),
-                x["store"],
-            ),
-            reverse=reverse,
-        )
+        
+        # First sort by primary key (if any)
+        if key is not None:
+            reverse = sort.endswith("_desc")
+            all_products.sort(
+                key=lambda x: (
+                    x[key] or 0,
+                    x["product_id"].zfill(10),
+                    x["store"],
+                ),
+                reverse=reverse,
+            )
+        
+        # Then stable sort to place available items first (availability sorting separate)
+        all_products.sort(key=lambda x: not x["available"])
         start = (page - 1) * PAGE_SIZE
         end = start + PAGE_SIZE
         page_results = all_products[start:end]

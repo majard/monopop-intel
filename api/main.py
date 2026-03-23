@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 
 from cache import get_cached, init_db, make_query_key, purge_expired, set_cached
 from scraper.vtex import SORT_OPTIONS, STORES, search_async
@@ -24,11 +24,22 @@ app = FastAPI(
 
 @app.get("/search")
 async def search_products(
-    q: str = Query(..., description="Search term"),
+    q: str = Query(..., min_length=1, description="Search term"),
     store: str = Query("prezunic", description=f"Available: {list(STORES.keys()) + ['all']}"),
     sort: str = Query("relevance", description=f"Available: {list(SORT_OPTIONS.keys())}"),
     page: int = Query(1, ge=1, description="Page number"),
 ):
+    # Runtime validation before cache lookup or scraper calls
+    if not q or not q.strip():
+        raise HTTPException(status_code=422, detail="Search term 'q' cannot be empty")
+    
+    valid_stores = list(STORES.keys()) + ["all"]
+    if store not in valid_stores:
+        raise HTTPException(status_code=422, detail=f"Invalid store '{store}'. Available: {valid_stores}")
+    
+    if sort not in SORT_OPTIONS:
+        raise HTTPException(status_code=422, detail=f"Invalid sort '{sort}'. Available: {list(SORT_OPTIONS.keys())}")
+    
     query_key = make_query_key(store, q, sort, page)
 
     cached = await get_cached(query_key)

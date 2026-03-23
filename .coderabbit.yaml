@@ -103,8 +103,6 @@ reviews:
     enabled: true
     drafts: false
 
-  finishing_touches:
-    enabled: true
 
   auto_title_placeholder: "@coderabbitai"
 
