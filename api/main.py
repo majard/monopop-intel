@@ -205,8 +205,14 @@ async def history_by_term(
         p["trend"] = trend
         result.append(p)
 
-    # Sort by current price ASC, nulls last
-    result.sort(key=lambda x: (x["current_price"] is None, x["current_price"] or 0))
+    # Sort: available first, then by price ASC
+    result.sort(
+        key=lambda x: (
+            not x["current_available"],  # False (0) before True (1), so negate
+            x["current_price"] is None,
+            x["current_price"] or 0,
+        )
+    )
 
     return {
         "term": term,
