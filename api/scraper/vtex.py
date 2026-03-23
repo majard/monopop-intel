@@ -22,12 +22,23 @@ PAGE_SIZE = 10
 
 
 def parse_product(product: dict, store: str) -> dict:
-    item = product.get("items", [{}])[0]
-    offer = item.get("sellers", [{}])[0].get("commertialOffer", {})
+    # Guard against empty items list
+    items = product.get("items", [])
+    if not isinstance(items, list) or len(items) == 0:
+        item = {}
+    else:
+        item = items[0]
+    
+    # Guard against empty sellers list
+    sellers = item.get("sellers", [])
+    if not isinstance(sellers, list) or len(sellers) == 0:
+        offer = {}
+    else:
+        offer = sellers[0].get("commertialOffer", {})
 
     return {
         "store": store,
-        "product_id": product.get("productId"),
+        "product_id": str(product.get("productId", "")),
         "name": product.get("productName"),
         "brand": product.get("brand"),
         "ean": item.get("ean"),
@@ -75,10 +86,11 @@ async def search_async(
 ) -> dict:
     if store == "all":
         # busca page * PAGE_SIZE de cada loja pra garantir merge correto
+        # fetches ALL_STORE_FETCH_SIZE per store, trims to limit before sort
         async with httpx.AsyncClient(timeout=10) as client:
             results = await asyncio.gather(
                 *[
-                    fetch_store(client, s, query, sort, 0, ALL_STORE_FETCH_SIZE - 1)
+                    fetch_store(client, s, query, sort, 0, ALL_STORE_FETCH_SIZE)
                     for s in STORES
                 ]
             )
@@ -86,6 +98,10 @@ async def search_async(
         all_products = []
         for products, _ in results:
             all_products.extend(products)
+        
+        # verifica se algum store retornou mais que ALL_STORE_FETCH_SIZE itens
+        if len(all_products) > ALL_STORE_FETCH_SIZE:
+            all_products = all_products[:ALL_STORE_FETCH_SIZE]
 
         # sort local após merge
         # Derive primary sort key only when sort explicitly contains "price" or "name"

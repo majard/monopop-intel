@@ -59,3 +59,4 @@ Current coverage is limited to stores with publicly accessible APIs. Next steps 
 ## Status
 
 🌱 v0.1 — MVP built to validate architecture and data acquisition strategy. Two supermarkets live, multi-store comparison, sort and pagination.
+🌱 v0.2 — Three supermarkets live, multi-store comparison, sort, pagination, and reactive cache layer.
