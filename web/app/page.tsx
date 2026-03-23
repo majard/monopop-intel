@@ -19,6 +19,7 @@ interface SearchResult {
   total: number | null;
   has_more: boolean;
   results: Product[];
+  _cache?: { hit: boolean; cached_at?: string; age_seconds?: number };
 }
 
 async function fetchProducts(
@@ -142,6 +143,9 @@ export default async function Home({
               página {data.page}{totalPages ? ` de ${totalPages}` : ""} ·{" "}
               <span className="text-emerald-400">"{data.query}"</span> em{" "}
               <span className="text-zinc-300">{STORE_LABELS[data.store] ?? data.store}</span>
+              {data._cache?.hit && (
+                <span className="text-zinc-600"> · cache {data._cache.age_seconds}s</span>
+              )}
             </p>
 
             {/* Results */}
