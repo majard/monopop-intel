@@ -97,7 +97,7 @@ A persistent record of prices over time. Feeds future analytics, inflation
 tracking, and the cross-reference engine (top-down vs bottom-up prices).
 Not a cache — rows are never invalidated, only appended.
 
-Full design in `SPEC-price-history.md`.
+Full design in `specs/priceHistory.md`.
 
 ### Schema (PostgreSQL on Railway)
 Normalized — each price observation is its own row.
@@ -202,7 +202,7 @@ For MVP: store everything, filter at display time via category.
   retry mode for failed terms
 - `allow_list.json` — ~210 canonical terms across 9 categories, per-term
   `max_results`
-- `SPEC-price-history.md` — full feature spec
+- `specs/priceHistory.md` — full feature spec
 
 ---
 
@@ -218,9 +218,7 @@ For MVP: store everything, filter at display time via category.
    different category names for the same products. Mapping layer needed
    for unified filtering.
 
-4. **Cron parallelization** — currently sequential per term × store.
-   `asyncio.gather` + semaphore would cut runtime ~3x. Low priority until
-   runtime becomes a problem.
+4. **Cron parallelization** — implemented via `asyncio.gather` with per-store semaphores in `api/cron.py`.
 
 5. **Unification of cache and history** — deferred to v2. Both layers
    observe the same products but serve different consumers.

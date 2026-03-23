@@ -63,8 +63,13 @@ CREATE TABLE price_points (
     price       NUMERIC(10,2),
     list_price  NUMERIC(10,2),
     available   BOOLEAN         NOT NULL DEFAULT true,
-    scraped_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+    scraped_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    scrape_date DATE            NOT NULL     -- DATE part of scraped_at for daily deduplication
 );
+
+-- Enforce one observation per product per day
+CREATE UNIQUE INDEX idx_price_points_daily_unique
+    ON price_points (product_id, scrape_date);
 
 CREATE INDEX idx_price_points_product_scraped
     ON price_points (product_id, scraped_at DESC);
@@ -99,10 +104,7 @@ enforced.
 immediately visible to users. NUMERIC is exact at the cost of slightly more
 storage.
 
-**One row per observation, no daily upsert.** The cron runs once daily.
-Rather than enforcing a max-1-per-day constraint at write time, we store
-every observation and filter at read time. Simpler writes, flexible queries.
-Retention handles growth.
+**One observation per product per day.** Enforced by unique index on (product_id, scrape_date) with ON CONFLICT DO NOTHING. Prevents duplicate observations when the cron runs multiple times per day while still allowing daily price tracking.
 
 ---
 
@@ -162,7 +164,7 @@ for each term × store:
 
 Both write operations are idempotent. If the cron runs twice in a day,
 `upsert_products` is a no-op for existing products and `insert_price_points`
-appends a second observation — acceptable, filtered at read time.
+skips duplicates due to the unique constraint on (product_id, scrape_date).
 
 ---
 
@@ -171,8 +173,7 @@ appends a second observation — acceptable, filtered at read time.
 ### Idempotency
 
 `upsert_products` uses `INSERT ... ON CONFLICT DO NOTHING` — safe to run
-multiple times. `insert_price_points` always appends — multiple runs produce
-multiple rows for the same day, which is acceptable and queryable.
+multiple times. `insert_price_points` uses `ON CONFLICT (product_id, scrape_date) DO NOTHING` — prevents duplicate observations for the same product on the same day.
 
 ### Failure handling and retry
 
