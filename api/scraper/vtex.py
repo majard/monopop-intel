@@ -53,9 +53,12 @@ async def fetch_store(
     if sort_value:
         params["O"] = sort_value
 
-    url = f"{base_url}/api/catalog_system/pub/products/search?ft={quote(query)}"
+    param_str = f"_from={from_index}&_to={to_index}"
+    if sort_value:
+        param_str += f"&O={sort_value}"
 
-    response = await client.get(url, params=params)
+    url = f"{base_url}/api/catalog_system/pub/products/search?ft={quote(query)}&{param_str}"
+    response = await client.get(url)
     response.raise_for_status()
 
     resources = response.headers.get("resources", "")
