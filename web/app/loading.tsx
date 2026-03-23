@@ -1,6 +1,6 @@
 export default function Loading() {
   return (
-    <main className="min-h-screen bg-zinc-950 font-mono">
+    <main className="min-h-screen bg-zinc-950 font-mono" aria-busy="true">
       <div className="max-w-3xl mx-auto px-6 py-16">
         <div className="mb-12">
           <h1 className="text-2xl font-bold tracking-tight text-white">
@@ -9,6 +9,14 @@ export default function Loading() {
           <p className="text-zinc-500 text-sm mt-1">
             market price intelligence · rio de janeiro
           </p>
+        </div>
+        <div 
+          role="status" 
+          aria-live="polite" 
+          aria-atomic="true"
+          className="sr-only"
+        >
+          Loading…
         </div>
         <div className="flex flex-col gap-3 mt-20">
           {[...Array(6)].map((_, i) => (

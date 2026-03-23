@@ -98,13 +98,11 @@ reviews:
         Do not suggest:
         - Converting to a client component for network visibility.
         - Adding loading states beyond what Next.js streaming provides.
-
+        
   auto_review:
     enabled: true
     drafts: false
 
-  finishing_touches:
-    enabled: true
 
   auto_title_placeholder: "@coderabbitai"
 
@@ -125,37 +123,29 @@ reviews:
 
     Keep the tone direct and technical. No fluff.
 
-additional_instructions: |
-  monopop-intel is a market price intelligence tool for Rio de Janeiro supermarkets.
-  FastAPI backend with async VTEX scraping (Prezunic, Zona Sul, Hortifruti),
-  SQLite cache layer, Next.js 15 frontend.
+    ## 🧠 Technical highlights (for README / portfolio)
 
-  At the end of EVERY PR review, include this section:
+    List up to 5 decisions from this PR that a senior engineer would consider
+    non-obvious or worth noting. Use precise English technical terminology.
 
-  ## 🧠 Technical highlights (for README / portfolio)
+    Format:
+    **[Technique/Pattern]** — [what was done, one sentence] — [why the approach
+    is non-trivial or which trade-off it resolves]
 
-  List up to 5 decisions from this PR that a senior engineer would consider
-  non-obvious or worth noting. Use precise English technical terminology.
+    Worth noting:
+    - Performance decisions with measurable impact
+    - Non-obvious API constraints and their workarounds (e.g. VTEX encoding behavior)
+    - Explicit trade-offs (e.g. blob cache vs normalized history schema)
+    - Architectural decisions that prevent future problems
+    - Data pipeline decisions (TTL rationale, key design, invalidation strategy)
 
-  Format:
-  **[Technique/Pattern]** — [what was done, one sentence] — [why the approach
-  is non-trivial or which trade-off it resolves]
+    Not worth noting:
+    - Trivial refactors or renames
+    - Obvious type additions
+    - Style or formatting changes
+    - Anything already documented in NOTES.md or RADAR.md
 
-  Worth noting:
-  - Performance decisions with measurable impact
-  - Non-obvious API constraints and their workarounds (e.g. VTEX encoding behavior)
-  - Explicit trade-offs (e.g. blob cache vs normalized history schema)
-  - Architectural decisions that prevent future problems
-  - Data pipeline decisions (TTL rationale, key design, invalidation strategy)
-
-  Not worth noting:
-  - Trivial refactors or renames
-  - Obvious type additions
-  - Style or formatting changes
-  - Anything already documented in NOTES.md or RADAR.md
-
-  If the PR contains nothing technically notable, write only:
-  "No technical highlights in this PR."
-
+    Keep the tone direct and technical. No fluff.
+    
 chat:
   auto_reply: true
