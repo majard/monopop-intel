@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from db import get_pool
 
 
@@ -52,9 +52,11 @@ async def insert_price_points(
     products: list[dict],
     id_map: dict[tuple, int],
     term: str,
+    today: date,
 ) -> None:
     """
     Insert one price_point row per product observation.
+    Skips if already exists for today (ON CONFLICT DO NOTHING).
     """
     pool = await get_pool()
     now = datetime.now(timezone.utc)
@@ -62,8 +64,9 @@ async def insert_price_points(
     async with pool.acquire() as conn:
         await conn.executemany(
             """
-            INSERT INTO price_points (product_id, term, price, list_price, available, scraped_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO price_points (product_id, term, price, list_price, available, scraped_at, scrape_date)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (product_id, scrape_date) DO NOTHING
             """,
             [
                 (
@@ -73,6 +76,7 @@ async def insert_price_points(
                     p["list_price"],
                     p["available"],
                     now,
+                    today,
                 )
                 for p in products
                 if (p["product_id"], p["store"]) in id_map

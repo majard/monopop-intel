@@ -7,13 +7,15 @@ load_dotenv()
 _pool: asyncpg.Pool | None = None
 
 
-async def get_pool() -> asyncpg.Pool:
+async def get_pool(max_concurrency: int = 10) -> asyncpg.Pool:
     global _pool
     if _pool is None:
+        # We set max_size to max_concurrency + 2 for a little 'breathing room'
+        # for health checks or manual queries.
         _pool = await asyncpg.create_pool(
             dsn=os.environ["DATABASE_URL"],
             min_size=1,
-            max_size=5,
+            max_size=max_concurrency + 2,
         )
     return _pool
 
@@ -51,8 +53,12 @@ async def init_schema() -> None:
                 price       NUMERIC(10,2),
                 list_price  NUMERIC(10,2),
                 available   BOOLEAN         NOT NULL DEFAULT true,
-                scraped_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+                scraped_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+                scrape_date DATE            NOT NULL
             );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_price_points_daily_unique
+                ON price_points (product_id, scrape_date);
 
             CREATE INDEX IF NOT EXISTS idx_price_points_product_scraped
                 ON price_points (product_id, scraped_at DESC);

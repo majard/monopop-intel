@@ -1,11 +1,16 @@
 import asyncio
 import json
 import unicodedata
+import argparse
 from pathlib import Path
+from datetime import date
 
 from db import close_pool, get_pool, init_schema
 from history_writer import insert_price_points, log_scrape, upsert_products
 from scraper.vtex import STORES, fetch_all
+
+# Config: 10 concurrent requests allowed PER STORE
+CONCURRENCY_PER_STORE = 10
 
 
 def normalize_term(term: str) -> str:
@@ -18,7 +23,7 @@ def normalize_term(term: str) -> str:
     )
 
 
-async def scrape_term(entry: dict, store: str) -> None:
+async def scrape_term(entry: dict, store: str, today: date) -> None:
     term = entry["term"]
     max_results = entry.get("max_results", 50)
     normalized = normalize_term(term)
@@ -31,7 +36,7 @@ async def scrape_term(entry: dict, store: str) -> None:
             return
 
         id_map = await upsert_products(products)
-        await insert_price_points(products, id_map, term)
+        await insert_price_points(products, id_map, term, today)
         await log_scrape(term, store, "ok")
         print(f"[ok] {term} × {store} — {len(products)} products")
 
@@ -40,7 +45,10 @@ async def scrape_term(entry: dict, store: str) -> None:
         print(f"[fail] {term} × {store} — {e}")
 
 
-async def run_cron(retry_mode: bool = False) -> None:
+async def run_cron(retry_mode: bool = False, limit: int | None = None) -> None:
+    today = date.today() 
+    total_concurrency = len(STORES) * CONCURRENCY_PER_STORE
+    await get_pool(max_concurrency=total_concurrency)
     await init_schema()
 
     allow_list_path = Path(__file__).parent / "allow_list.json"
@@ -48,6 +56,12 @@ async def run_cron(retry_mode: bool = False) -> None:
         data = json.load(f)
 
     entries = data["terms"]
+    
+    if limit:
+        original_count = len(entries)
+        entries = entries[:limit]
+        print(f"[cron] Limited to {len(entries)}/{original_count} terms")
+    
     failed_pairs: set = set()
 
     if retry_mode:
@@ -70,17 +84,32 @@ async def run_cron(retry_mode: bool = False) -> None:
     else:
         print(f"[cron] {len(entries)} terms × {len(STORES)} stores")
 
+    store_semaphores = {
+        store: asyncio.Semaphore(CONCURRENCY_PER_STORE) for store in STORES
+    }
+
+    async def scrape_with_semaphore(entry: dict, store: str) -> None:
+        async with store_semaphores[store]:
+            await scrape_term(entry, store, today)
+
+    tasks = []
     for entry in entries:
         for store in STORES:
             if retry_mode and (entry["term"], store) not in failed_pairs:
                 continue
-            await scrape_term(entry, store)
+            tasks.append(scrape_with_semaphore(entry, store))
 
+    if tasks:
+        await asyncio.gather(*tasks)
+
+    print(f"[done] Scrape cycle complete. Total tasks: {len(tasks)}")
     await close_pool()
 
 
 if __name__ == "__main__":
-    import sys
-
-    retry = "--retry" in sys.argv
-    asyncio.run(run_cron(retry_mode=retry))
+    parser = argparse.ArgumentParser(description="Price scraping cron")
+    parser.add_argument("--retry", action="store_true", help="Retry failed scrapes")
+    parser.add_argument("--limit", type=int, default=None, help="Limit number of terms")
+    args = parser.parse_args()
+    
+    asyncio.run(run_cron(retry_mode=args.retry, limit=args.limit))
