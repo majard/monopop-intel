@@ -1,6 +1,5 @@
 import httpx
 import asyncio
-from typing import Optional
 from urllib.parse import quote
 
 ALL_STORE_FETCH_SIZE = 50  # busca fixa pra modo all
@@ -48,15 +47,15 @@ async def fetch_store(
     to_index: int,
 ) -> tuple[list[dict], int]:
     base_url = STORES[store]
-    params = {"_from": from_index, "_to": to_index}
     sort_value = SORT_OPTIONS.get(sort, "")
-    if sort_value:
-        params["O"] = sort_value
 
     param_str = f"_from={from_index}&_to={to_index}"
     if sort_value:
         param_str += f"&O={sort_value}"
 
+    # httpx re-encodes %20 as + when using params dict or httpx.URL(),
+    # and VTEX rejects + in the ft param with "Bad Request! Scripts are not allowed!"
+    # URL must be built manually to preserve percent-encoding.
     url = f"{base_url}/api/catalog_system/pub/products/search?ft={quote(query)}&{param_str}"
     response = await client.get(url)
     response.raise_for_status()
