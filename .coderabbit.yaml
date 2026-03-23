@@ -151,38 +151,6 @@ reviews:
     query patterns, or edge cases worth checking.
 
     Keep the tone direct and technical. No fluff.
-
-additional_instructions: |
-  monopop-intel is a market price intelligence tool for Rio de Janeiro supermarkets.
-  FastAPI backend with async VTEX scraping (Prezunic, Zona Sul, Hortifruti),
-  SQLite cache layer, Next.js 15 frontend.
-
-  At the end of EVERY PR review, include this section:
-
-  ## 🧠 Technical highlights (for README / portfolio)
-
-  List up to 5 decisions from this PR that a senior engineer would consider
-  non-obvious or worth noting. Use precise English technical terminology.
-
-  Format:
-  **[Technique/Pattern]** — [what was done, one sentence] — [why the approach
-  is non-trivial or which trade-off it resolves]
-
-  Worth noting:
-  - Performance decisions with measurable impact
-  - Non-obvious API constraints and their workarounds (e.g. VTEX encoding behavior)
-  - Explicit trade-offs (e.g. blob cache vs normalized history schema)
-  - Architectural decisions that prevent future problems
-  - Data pipeline decisions (TTL rationale, key design, invalidation strategy)
-
-  Not worth noting:
-  - Trivial refactors or renames
-  - Obvious type additions
-  - Style or formatting changes
-  - Anything already documented in NOTES.md or RADAR.md
-
-  If the PR contains nothing technically notable, write only:
-  "No technical highlights in this PR."
-
+    
 chat:
   auto_reply: true

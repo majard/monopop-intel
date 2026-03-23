@@ -86,11 +86,10 @@ async def search_async(
 ) -> dict:
     if store == "all":
         # busca page * PAGE_SIZE de cada loja pra garantir merge correto
-        # fetches ALL_STORE_FETCH_SIZE per store, trims to limit before sort
         async with httpx.AsyncClient(timeout=10) as client:
             results = await asyncio.gather(
                 *[
-                    fetch_store(client, s, query, sort, 0, ALL_STORE_FETCH_SIZE)
+                    fetch_store(client, s, query, sort, 0, ALL_STORE_FETCH_SIZE - 1)
                     for s in STORES
                 ]
             )
@@ -98,10 +97,6 @@ async def search_async(
         all_products = []
         for products, _ in results:
             all_products.extend(products)
-        
-        # verifica se algum store retornou mais que ALL_STORE_FETCH_SIZE itens
-        if len(all_products) > ALL_STORE_FETCH_SIZE:
-            all_products = all_products[:ALL_STORE_FETCH_SIZE]
 
         # sort local após merge
         # Derive primary sort key only when sort explicitly contains "price" or "name"
@@ -119,14 +114,24 @@ async def search_async(
         # First sort by primary key (if any)
         if key is not None:
             reverse = sort.endswith("_desc")
-            all_products.sort(
-                key=lambda x: (
-                    x[key] or 0,
-                    x["product_id"].zfill(10),
-                    x["store"],
-                ),
-                reverse=reverse,
-            )
+            if key == "name":
+                all_products.sort(
+                    key=lambda x: (
+                        (x.get("name") or "").casefold(),
+                        x["product_id"].zfill(10),
+                        x["store"],
+                    ),
+                    reverse=reverse,
+                )
+            else:
+                all_products.sort(
+                    key=lambda x: (
+                        x[key] or 0,
+                        x["product_id"].zfill(10),
+                        x["store"],
+                    ),
+                    reverse=reverse,
+                )
         
         # Then stable sort to place available items first (availability sorting separate)
         all_products.sort(key=lambda x: not x["available"])
