@@ -33,7 +33,7 @@ async def scrape_term(entry: dict, store: str, today: date) -> None:
 
         if not products:
             await log_scrape(term, store, "ok")
-            print(f"[ok] {term} x {store} — 0 products")
+            print(f"[ok] {term} × {store} — 0 products")
             return
 
         id_map = await upsert_products(products)
@@ -101,10 +101,11 @@ async def run_cron(retry_mode: bool = False, limit: int | None = None) -> None:
             tasks.append(scrape_with_semaphore(entry, store))
 
     if tasks:
-        await asyncio.gather(*tasks)
-
-    print(f"[done] Scrape cycle complete. Total tasks: {len(tasks)}")
-    await close_pool()
+        try:
+            await asyncio.gather(*tasks)
+        finally:
+            await close_pool()
+        print(f"[done] Scrape cycle complete. Total tasks: {len(tasks)}")
 
 
 if __name__ == "__main__":
