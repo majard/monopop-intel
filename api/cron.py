@@ -32,7 +32,8 @@ async def scrape_term(entry: dict, store: str, today: date) -> None:
         products = await fetch_all(normalized, store=store, max_results=max_results)
 
         if not products:
-            await log_scrape(term, store, "failed", "empty result")
+            await log_scrape(term, store, "ok")
+            print(f"[ok] {term} x {store} — 0 products")
             return
 
         id_map = await upsert_products(products)
