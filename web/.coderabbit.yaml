@@ -1,0 +1,161 @@
+# .coderabbit.yaml
+# monopop-intel — CodeRabbit configuration
+# https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: "en-US"
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: true
+  review_status: true
+  collapse_walkthrough: false
+
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/.next/**"
+    - "!**/package-lock.json"
+    - "!**/*.db"
+    - "!**/*.db-shm"
+    - "!**/*.db-wal"
+
+  path_instructions:
+
+    # --- Scraper: VTEX ---
+    - path: "api/scraper/vtex.py"
+      instructions: |
+        VTEX Intelligent Search endpoint via httpx + asyncio.
+        Three live stores: Prezunic, Zona Sul, Hortifruti.
+
+        Critical constraints — do not suggest reverting:
+        - ft (search term) param must be manually percent-encoded via urllib.parse.quote.
+          httpx re-encodes %20 as + in both params dict and httpx.URL() mode.
+          VTEX rejects + with "Bad Request! Scripts are not allowed!"
+          URL is built as a raw string to preserve encoding. This is intentional.
+        - "all" store mode fetches ALL_STORE_FETCH_SIZE=50 results per store,
+          merges and sorts locally, then paginates. Total is set to None — it is
+          not calculable with precision after cross-store merge.
+        - Sort in "all" mode is applied locally after merge, not per-store.
+
+        Focus on:
+        - Timeout handling — VTEX responses are frail.
+        - parse_product: flag any new field extraction that doesn't guard against
+          missing keys with .get() and safe defaults.
+        - asyncio.gather error propagation — a single store failure should not
+          silently corrupt the merged result.
+
+    # --- Cache ---
+    - path: "api/cache.py"
+      instructions: |
+        SQLite cache layer via aiosqlite. Sits between /search endpoint and VTEX scraper.
+        TTL: 4 hours. Passive invalidation on read (stale rows deleted on access).
+
+        Cache key: SHA-256(store:normalized_query:sort:page).
+        Normalization: lowercase, strip accents, strip non-alphanumeric, collapse whitespace.
+        All four search params are included in the key — sort and page produce
+        different result sets and must be part of the key.
+
+        Current behavior (v1 — intentionally simple):
+        - Stale rows are deleted on read, no fallback to stale data on VTEX failure.
+        - Startup purge via purge_expired() removes rows older than TTL.
+        - No allow-list filtering yet — unbounded key growth is a known open issue.
+
+        Planned (do not flag as missing):
+        - Stale-while-revalidate fallback: if VTEX fails, serve stale + stale:true flag.
+        - Allow-list filter: only cache queries matching canonical product terms.
+
+    # --- API ---
+    - path: "api/main.py"
+      instructions: |
+        FastAPI entrypoint. Single /search endpoint wired with cache-aside pattern.
+        Response includes _cache metadata block (hit, cached_at, age_seconds).
+        lifespan initializes SQLite DB and purges expired rows on startup.
+
+        Validation: store and sort params are not yet validated against allowed values —
+        invalid values fall through to the scraper. Flag if this causes silent failures.
+
+    # --- Allow list ---
+    - path: "api/allow_list.json"
+      instructions: |
+        Canonical product terms for cache allow-list filtering.
+        ~214 terms across 9 categories covering ~90% of Brazilian household searches.
+        Not yet wired into the cache — placeholder for upcoming allow-list filter.
+
+        This is a data file, not code. Flag only structural issues (malformed JSON,
+        missing required fields: term, category).
+
+    # --- Frontend ---
+    - path: "web/app/page.tsx"
+      instructions: |
+        Next.js 15 server component. Fetches from FastAPI via server-side fetch
+        (cache: no-store). No client-side data fetching — network tab will not
+        show API calls, they happen server-side.
+
+        _cache metadata block from API is surfaced in the results count line
+        (shows "· cache Xs" on hit). Intentional dev visibility, not user-facing.
+
+        Do not suggest:
+        - Converting to a client component for network visibility.
+        - Adding loading states beyond what Next.js streaming provides.
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+  finishing_touches:
+    enabled: true
+
+  auto_title_placeholder: "@coderabbitai"
+
+  high_level_summary_instructions: |
+    Generate a PR description with the following structure:
+
+    ## What changed
+    One paragraph summary of what this PR does, written for a technical audience.
+    Focus on the why, not just the what.
+
+    ## Key decisions
+    Bullet list of non-obvious technical decisions made in this PR.
+    Skip trivial changes.
+
+    ## Testing notes
+    What to verify manually when reviewing. Be specific — name endpoints,
+    query patterns, or edge cases worth checking.
+
+    Keep the tone direct and technical. No fluff.
+
+additional_instructions: |
+  monopop-intel is a market price intelligence tool for Rio de Janeiro supermarkets.
+  FastAPI backend with async VTEX scraping (Prezunic, Zona Sul, Hortifruti),
+  SQLite cache layer, Next.js 15 frontend.
+
+  At the end of EVERY PR review, include this section:
+
+  ## 🧠 Technical highlights (for README / portfolio)
+
+  List up to 5 decisions from this PR that a senior engineer would consider
+  non-obvious or worth noting. Use precise English technical terminology.
+
+  Format:
+  **[Technique/Pattern]** — [what was done, one sentence] — [why the approach
+  is non-trivial or which trade-off it resolves]
+
+  Worth noting:
+  - Performance decisions with measurable impact
+  - Non-obvious API constraints and their workarounds (e.g. VTEX encoding behavior)
+  - Explicit trade-offs (e.g. blob cache vs normalized history schema)
+  - Architectural decisions that prevent future problems
+  - Data pipeline decisions (TTL rationale, key design, invalidation strategy)
+
+  Not worth noting:
+  - Trivial refactors or renames
+  - Obvious type additions
+  - Style or formatting changes
+  - Anything already documented in NOTES.md or RADAR.md
+
+  If the PR contains nothing technically notable, write only:
+  "No technical highlights in this PR."
+
+chat:
+  auto_reply: true
