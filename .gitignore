@@ -216,3 +216,5 @@ __marimo__/
 .streamlit/secrets.toml
 
 changes
+
+api/price_cache.db
