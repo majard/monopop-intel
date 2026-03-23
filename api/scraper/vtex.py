@@ -1,6 +1,7 @@
 import httpx
 import asyncio
 from typing import Optional
+from urllib.parse import quote
 
 ALL_STORE_FETCH_SIZE = 50  # busca fixa pra modo all
 
@@ -47,18 +48,16 @@ async def fetch_store(
     to_index: int,
 ) -> tuple[list[dict], int]:
     base_url = STORES[store]
-    params = {"ft": query, "_from": from_index, "_to": to_index}
+    params = {"_from": from_index, "_to": to_index}
     sort_value = SORT_OPTIONS.get(sort, "")
     if sort_value:
         params["O"] = sort_value
 
-    response = await client.get(
-        f"{base_url}/api/catalog_system/pub/products/search",
-        params=params,
-    )
+    url = f"{base_url}/api/catalog_system/pub/products/search?ft={quote(query)}"
+
+    response = await client.get(url, params=params)
     response.raise_for_status()
 
-    # total vem no header: "0-9/47"
     resources = response.headers.get("resources", "")
     total = int(resources.split("/")[1]) if "/" in resources else 0
 
@@ -75,10 +74,12 @@ async def search_async(
     if store == "all":
         # busca page * PAGE_SIZE de cada loja pra garantir merge correto
         async with httpx.AsyncClient(timeout=10) as client:
-            results = await asyncio.gather(*[
-                fetch_store(client, s, query, sort, 0, ALL_STORE_FETCH_SIZE - 1)
-                for s in STORES
-            ])
+            results = await asyncio.gather(
+                *[
+                    fetch_store(client, s, query, sort, 0, ALL_STORE_FETCH_SIZE - 1)
+                    for s in STORES
+                ]
+            )
 
         all_products = []
         for products, _ in results:
@@ -90,8 +91,13 @@ async def search_async(
         if key == "price":
             all_products = [p for p in all_products if p["price"] is not None]
         all_products.sort(
-            key=lambda x: (not x["available"], x[key] or 0, x["product_id"].zfill(10), x["store"]),
-            reverse=reverse
+            key=lambda x: (
+                not x["available"],
+                x[key] or 0,
+                x["product_id"].zfill(10),
+                x["store"],
+            ),
+            reverse=reverse,
         )
         start = (page - 1) * PAGE_SIZE
         end = start + PAGE_SIZE
@@ -129,7 +135,9 @@ async def search_async(
         }
 
 
-def search(query: str, store: str = "prezunic", sort: str = "relevance", page: int = 1) -> dict:
+def search(
+    query: str, store: str = "prezunic", sort: str = "relevance", page: int = 1
+) -> dict:
     return asyncio.run(search_async(query, store=store, sort=sort, page=page))
 
 
