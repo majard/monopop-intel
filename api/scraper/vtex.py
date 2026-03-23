@@ -28,7 +28,7 @@ def parse_product(product: dict, store: str) -> dict:
         item = {}
     else:
         item = items[0]
-    
+
     # Guard against empty sellers list
     sellers = item.get("sellers", [])
     if not isinstance(sellers, list) or len(sellers) == 0:
@@ -36,12 +36,19 @@ def parse_product(product: dict, store: str) -> dict:
     else:
         offer = sellers[0].get("commertialOffer", {})
 
+    category_path = (product.get("categories") or [""])[0]
+    category = category_path.strip("/").split("/")[-1] if category_path else None
+
     return {
         "store": store,
         "product_id": str(product.get("productId", "")),
         "name": product.get("productName"),
         "brand": product.get("brand"),
         "ean": item.get("ean"),
+        "category": category,
+        "category_path": category_path or None,
+        "measurement_unit": item.get("measurementUnit"),
+        "unit_multiplier": item.get("unitMultiplier"),
         "price": offer.get("Price"),
         "list_price": offer.get("ListPrice"),
         "available": offer.get("IsAvailable", False),
@@ -78,6 +85,35 @@ async def fetch_store(
     return products, total
 
 
+async def fetch_all(
+    query: str,
+    store: str,
+    max_results: int = 50,
+) -> list[dict]:
+    """
+    Fetch up to max_results products for a query from a single store.
+    Used by the cron — bypasses search_async pagination (PAGE_SIZE=10).
+    Fetches in batches of 50 (VTEX max per request).
+    """
+    all_products = []
+    from_index = 0
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        while from_index < max_results:
+            to_index = min(from_index + 49, max_results - 1)
+            products, total = await fetch_store(
+                client, store, query, "price_asc", from_index, to_index
+            )
+            all_products.extend(products)
+
+            if not products or from_index + 50 >= total:
+                break
+
+            from_index += 50
+
+    return all_products
+
+
 async def search_async(
     query: str,
     store: str = "prezunic",
@@ -106,11 +142,11 @@ async def search_async(
             key = "name"
         else:
             key = None
-        
+
         # Only filter out products with None price when sort explicitly requests price ordering
         if key == "price":
             all_products = [p for p in all_products if p["price"] is not None]
-        
+
         # First sort by primary key (if any)
         if key is not None:
             reverse = sort.endswith("_desc")
@@ -132,7 +168,7 @@ async def search_async(
                     ),
                     reverse=reverse,
                 )
-        
+
         # Then stable sort to place available items first (availability sorting separate)
         all_products.sort(key=lambda x: not x["available"])
         start = (page - 1) * PAGE_SIZE
