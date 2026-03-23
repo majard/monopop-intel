@@ -20,7 +20,16 @@ async def upsert_products(products: list[dict]) -> dict[tuple, int]:
                     measurement_unit, unit_multiplier, url
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                ON CONFLICT (vtex_product_id, store) DO NOTHING
+                ON CONFLICT (vtex_product_id, store) DO UPDATE
+                SET
+                    name = EXCLUDED.name,
+                    brand = EXCLUDED.brand,
+                    ean = EXCLUDED.ean,
+                    category = EXCLUDED.category,
+                    category_path = EXCLUDED.category_path,
+                    measurement_unit = EXCLUDED.measurement_unit,
+                    unit_multiplier = EXCLUDED.unit_multiplier,
+                    url = EXCLUDED.url
                 RETURNING id
                 """,
                 p["product_id"],
@@ -34,14 +43,6 @@ async def upsert_products(products: list[dict]) -> dict[tuple, int]:
                 p.get("unit_multiplier"),
                 p["url"],
             )
-
-            if row is None:
-                # already existed — fetch the id
-                row = await conn.fetchrow(
-                    "SELECT id FROM products WHERE vtex_product_id = $1 AND store = $2",
-                    p["product_id"],
-                    p["store"],
-                )
 
             id_map[(p["product_id"], p["store"])] = row["id"]
 
