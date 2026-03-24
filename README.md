@@ -119,18 +119,27 @@ Web: http://localhost:3000
 
 Required env vars:
 
-Variable	Description
-DATABASE_URL	PostgreSQL connection string
-Status
+| Variable | Description |
+|----------|-------------|
+| DATABASE_URL | PostgreSQL connection string |
+
+## Status
 🌱 v0.1 — MVP: reactive search across 2 supermarkets, sort, pagination
 🌱 v0.2 — 3 stores live, SQLite reactive cache, price history foundation:
 🌱 v0.3 — Price history read layer shipped: API endpoints + full history UI
   (`/history`, `/history/{term}`, `/history/{term}/{product_id}`)
+  
 PostgreSQL schema, daily cron, hourly retry, allow-list-driven scraping
+
 Limitations
 Current coverage is limited to stores with publicly accessible VTEX APIs.
 Price history coverage is limited to allow-listed terms (~210 canonical terms
 in `api/allow_list.json`); ad-hoc searches are not persisted.
 Stale cache fallback on VTEX failure is planned for v2.
 
+## Limitations
+- Current coverage is limited to stores with publicly accessible VTEX APIs.
+- Price history read endpoints (/history) and the history UI are not yet
+  shipped — data is being collected; the query layer is next.
+- Stale cache fallback on VTEX failure is planned for v2.
 See NOTES.md for open engineering questions and design rationale.
