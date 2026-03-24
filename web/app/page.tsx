@@ -85,17 +85,7 @@ export default async function Home({
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono">
-      <div className="max-w-3xl mx-auto px-6 py-16">
-
-        {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            monopop<span className="text-emerald-400">-intel</span>
-          </h1>
-          <p className="text-zinc-500 text-sm mt-1">
-            market price intelligence · rio de janeiro
-          </p>
-        </div>
+      <div className="max-w-3xl mx-auto px-6 py-8">
 
         {/* Search form — hidden inputs preservam sort e store */}
         <form method="GET" className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-10">
