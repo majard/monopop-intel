@@ -862,7 +862,8 @@
         },
         {
             "term": "chocolate",
-            "category": "padaria_cereais"
+            "category": "padaria_cereais",
+            "max_results": 420
         },
         {
             "term": "barra de cereal",
