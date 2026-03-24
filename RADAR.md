@@ -18,7 +18,7 @@ monopop-intel operates on two complementary data flows:
 advertised prices only.
 
 **Bottom-up** — price data contributed by consumers via the
-[Monopop](https://github.com/mahjard/monopop) app, captured at
+[Monopop](https://github.com/majard/monopop) app, captured at
 purchase time. Slower to accumulate, but reflects what people
 actually paid. Cross-referencing both flows reveals the gap
 between market price and real-world price — which is where the

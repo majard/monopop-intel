@@ -4,10 +4,12 @@ interface Product {
   name: string;
   brand: string;
   ean: string;
-  price: number;
-  list_price: number;
+  price: number | null;
+  list_price: number | null;
   available: boolean;
   url: string;
+  measurement_unit: string | null;
+  unit_multiplier: number | null;
 }
 
 interface SearchResult {
@@ -60,6 +62,11 @@ function buildUrl(params: Record<string, string>) {
   return `?${new URLSearchParams(params).toString()}`;
 }
 
+function formatPrice(price: number | null): string {
+  if (price === null) return "—";
+  return `R$ ${price.toFixed(2)}`;
+}
+
 export default async function Home({
   searchParams,
 }: {
@@ -78,17 +85,7 @@ export default async function Home({
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono">
-      <div className="max-w-3xl mx-auto px-6 py-16">
-
-        {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            monopop<span className="text-emerald-400">-intel</span>
-          </h1>
-          <p className="text-zinc-500 text-sm mt-1">
-            market price intelligence · rio de janeiro
-          </p>
-        </div>
+      <div className="max-w-3xl mx-auto px-6 py-8">
 
         {/* Search form — hidden inputs preservam sort e store */}
         <form method="GET" className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-10">
@@ -171,7 +168,7 @@ export default async function Home({
                             {STORE_LABELS[product.store] ?? product.store}
                           </span>
                         )}
-                        {product.list_price > product.price && (
+                        {product.list_price !== null && product.price !== null && product.list_price > product.price && (
                           <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                             oferta
                           </span>
@@ -186,11 +183,11 @@ export default async function Home({
                     </div>
                     <div className="text-right ml-4 shrink-0">
                       <p className="text-emerald-400 font-bold">
-                        R$ {product.price.toFixed(2)}
+                        {formatPrice(product.price)}
                       </p>
-                      {product.list_price > product.price && (
+                      {product.list_price !== null && product.price !== null && product.list_price > product.price && (
                         <p className="text-xs text-zinc-600 line-through">
-                          R$ {product.list_price.toFixed(2)}
+                          {formatPrice(product.list_price)}
                         </p>
                       )}
                     </div>

@@ -1,0 +1,905 @@
+{
+    "version": "0.1",
+    "notes": "Canonical product terms for cache allow-list filtering. A user query must fuzzy-match at least one term above threshold to be cached. The list is a reject filter — it does not normalize queries, only determines cacheability. Terms are normalized (lowercase, no accents) to match the preprocessing applied to incoming queries. Categories are informational for now; future use for store-term affinity in the cron job.",
+    "category_note": "Categories are internal groupings for cron organization and future store-affinity metadata. They do not map to VTEX category taxonomy.",
+    "terms": [
+        {
+            "term": "arroz",
+            "category": "graos_massas",
+            "max_results": 100
+        },
+        {
+            "term": "arroz integral",
+            "category": "graos_massas"
+        },
+        {
+            "term": "arroz parboilizado",
+            "category": "graos_massas"
+        },
+        {
+            "term": "feijao",
+            "category": "graos_massas"
+        },
+        {
+            "term": "feijao preto",
+            "category": "graos_massas",
+            "notes": "RJ preference over carioca"
+        },
+        {
+            "term": "feijao carioca",
+            "category": "graos_massas"
+        },
+        {
+            "term": "feijao fradinho",
+            "category": "graos_massas"
+        },
+        {
+            "term": "lentilha",
+            "category": "graos_massas"
+        },
+        {
+            "term": "grao de bico",
+            "category": "graos_massas"
+        },
+        {
+            "term": "soja",
+            "category": "graos_massas"
+        },
+        {
+            "term": "macarrao",
+            "category": "graos_massas",
+            "max_results": 130
+        },
+        {
+            "term": "macarrao integral",
+            "category": "graos_massas"
+        },
+        {
+            "term": "macarrao sem gluten",
+            "category": "graos_massas"
+        },
+        {
+            "term": "espaguete",
+            "category": "graos_massas"
+        },
+        {
+            "term": "farinha de trigo",
+            "category": "graos_massas"
+        },
+        {
+            "term": "farinha de mandioca",
+            "category": "graos_massas"
+        },
+        {
+            "term": "farinha sem gluten",
+            "category": "graos_massas"
+        },
+        {
+            "term": "fuba",
+            "category": "graos_massas"
+        },
+        {
+            "term": "amido de milho",
+            "category": "graos_massas"
+        },
+        {
+            "term": "flocao",
+            "category": "graos_massas"
+        },
+        {
+            "term": "aveia",
+            "category": "graos_massas"
+        },
+        {
+            "term": "tapioca",
+            "category": "graos_massas"
+        },
+        {
+            "term": "polvilho azedo",
+            "category": "graos_massas"
+        },
+        {
+            "term": "polvilho doce",
+            "category": "graos_massas"
+        },
+        {
+            "term": "milho pipoca",
+            "category": "graos_massas"
+        },
+        {
+            "term": "acucar",
+            "category": "graos_massas"
+        },
+        {
+            "term": "acucar demerara",
+            "category": "graos_massas"
+        },
+        {
+            "term": "acucar mascavo",
+            "category": "graos_massas"
+        },
+        {
+            "term": "bicarbonato de sodio",
+            "category": "graos_massas"
+        },
+        {
+            "term": "fermento",
+            "category": "graos_massas"
+        },
+        {
+            "term": "granola",
+            "category": "graos_massas"
+        },
+        {
+            "term": "tomate",
+            "category": "hortifruti"
+        },
+        {
+            "term": "cenoura",
+            "category": "hortifruti"
+        },
+        {
+            "term": "cebola",
+            "category": "hortifruti"
+        },
+        {
+            "term": "alho",
+            "category": "hortifruti"
+        },
+        {
+            "term": "batata",
+            "category": "hortifruti"
+        },
+        {
+            "term": "batata doce",
+            "category": "hortifruti"
+        },
+        {
+            "term": "macaxeira",
+            "category": "hortifruti"
+        },
+        {
+            "term": "mandioca",
+            "category": "hortifruti"
+        },
+        {
+            "term": "abobrinha",
+            "category": "hortifruti"
+        },
+        {
+            "term": "chuchu",
+            "category": "hortifruti"
+        },
+        {
+            "term": "quiabo",
+            "category": "hortifruti"
+        },
+        {
+            "term": "couve",
+            "category": "hortifruti"
+        },
+        {
+            "term": "alface",
+            "category": "hortifruti"
+        },
+        {
+            "term": "brocolis",
+            "category": "hortifruti"
+        },
+        {
+            "term": "couve flor",
+            "category": "hortifruti"
+        },
+        {
+            "term": "pepino",
+            "category": "hortifruti"
+        },
+        {
+            "term": "pimentao",
+            "category": "hortifruti"
+        },
+        {
+            "term": "beterraba",
+            "category": "hortifruti"
+        },
+        {
+            "term": "repolho",
+            "category": "hortifruti"
+        },
+        {
+            "term": "vagem",
+            "category": "hortifruti"
+        },
+        {
+            "term": "milho verde",
+            "category": "hortifruti"
+        },
+        {
+            "term": "espinafre",
+            "category": "hortifruti"
+        },
+        {
+            "term": "rucula",
+            "category": "hortifruti"
+        },
+        {
+            "term": "banana",
+            "category": "hortifruti"
+        },
+        {
+            "term": "maca",
+            "category": "hortifruti"
+        },
+        {
+            "term": "laranja",
+            "category": "hortifruti"
+        },
+        {
+            "term": "limao",
+            "category": "hortifruti"
+        },
+        {
+            "term": "manga",
+            "category": "hortifruti"
+        },
+        {
+            "term": "abacate",
+            "category": "hortifruti"
+        },
+        {
+            "term": "mamao",
+            "category": "hortifruti"
+        },
+        {
+            "term": "abacaxi",
+            "category": "hortifruti"
+        },
+        {
+            "term": "melancia",
+            "category": "hortifruti"
+        },
+        {
+            "term": "uva",
+            "category": "hortifruti"
+        },
+        {
+            "term": "pera",
+            "category": "hortifruti"
+        },
+        {
+            "term": "morango",
+            "category": "hortifruti"
+        },
+        {
+            "term": "kiwi",
+            "category": "hortifruti"
+        },
+        {
+            "term": "acai",
+            "category": "hortifruti"
+        },
+        {
+            "term": "coco",
+            "category": "hortifruti"
+        },
+        {
+            "term": "agua de coco",
+            "category": "hortifruti"
+        },
+        {
+            "term": "frango",
+            "category": "proteinas",
+            "max_results": 210
+        },
+        {
+            "term": "coxa sobrecoxa",
+            "category": "proteinas"
+        },
+        {
+            "term": "peito de frango",
+            "category": "proteinas"
+        },
+        {
+            "term": "carne moida",
+            "category": "proteinas"
+        },
+        {
+            "term": "carne bovina",
+            "category": "proteinas"
+        },
+        {
+            "term": "patinho",
+            "category": "proteinas"
+        },
+        {
+            "term": "alcatra",
+            "category": "proteinas"
+        },
+        {
+            "term": "picanha",
+            "category": "proteinas"
+        },
+        {
+            "term": "costela",
+            "category": "proteinas"
+        },
+        {
+            "term": "acem",
+            "category": "proteinas"
+        },
+        {
+            "term": "contrafile",
+            "category": "proteinas"
+        },
+        {
+            "term": "linguica",
+            "category": "proteinas"
+        },
+        {
+            "term": "linguica toscana",
+            "category": "proteinas"
+        },
+        {
+            "term": "bacon",
+            "category": "proteinas"
+        },
+        {
+            "term": "salsicha",
+            "category": "proteinas"
+        },
+        {
+            "term": "presunto",
+            "category": "proteinas"
+        },
+        {
+            "term": "peito de peru",
+            "category": "proteinas"
+        },
+        {
+            "term": "ovo",
+            "category": "proteinas",
+            "max_results": 150
+        },
+        {
+            "term": "atum",
+            "category": "proteinas"
+        },
+        {
+            "term": "sardinha",
+            "category": "proteinas"
+        },
+        {
+            "term": "camarao",
+            "category": "proteinas"
+        },
+        {
+            "term": "file de peixe",
+            "category": "proteinas"
+        },
+        {
+            "term": "salmao",
+            "category": "proteinas"
+        },
+        {
+            "term": "tilapia",
+            "category": "proteinas"
+        },
+        {
+            "term": "leite",
+            "category": "laticinios_frios", 
+            "max_results": 200
+        },
+        {
+            "term": "leite condensado",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "leite em po",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "leite de coco",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "leite vegetal",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "creme de leite",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "iogurte",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "iogurte grego",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "manteiga",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "margarina",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "requeijao",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "queijo mussarela",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "queijo prato",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "queijo ralado",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "queijo coalho",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "nata",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "oleo",
+            "category": "condimentos"
+        },
+        {
+            "term": "azeite",
+            "category": "condimentos"
+        },
+        {
+            "term": "vinagre",
+            "category": "condimentos"
+        },
+        {
+            "term": "aceto balsamico",
+            "category": "condimentos"
+        },
+        {
+            "term": "molho de tomate",
+            "category": "condimentos"
+        },
+        {
+            "term": "ketchup",
+            "category": "condimentos"
+        },
+        {
+            "term": "maionese",
+            "category": "condimentos"
+        },
+        {
+            "term": "mostarda",
+            "category": "condimentos"
+        },
+        {
+            "term": "shoyu",
+            "category": "condimentos"
+        },
+        {
+            "term": "tempero completo",
+            "category": "condimentos"
+        },
+        {
+            "term": "sazon",
+            "category": "condimentos"
+        },
+        {
+            "term": "caldo knorr",
+            "category": "condimentos"
+        },
+        {
+            "term": "colorau",
+            "category": "condimentos"
+        },
+        {
+            "term": "cominho",
+            "category": "condimentos"
+        },
+        {
+            "term": "pimenta do reino",
+            "category": "condimentos"
+        },
+        {
+            "term": "oregano",
+            "category": "condimentos"
+        },
+        {
+            "term": "canela",
+            "category": "condimentos"
+        },
+        {
+            "term": "mel",
+            "category": "condimentos"
+        },
+        {
+            "term": "geleia",
+            "category": "condimentos"
+        },
+        {
+            "term": "palmito",
+            "category": "condimentos"
+        },
+        {
+            "term": "azeitona",
+            "category": "condimentos"
+        },
+        {
+            "term": "champignon",
+            "category": "condimentos"
+        },
+        {
+            "term": "ervilha",
+            "category": "condimentos"
+        },
+        {
+            "term": "milho em conserva",
+            "category": "condimentos"
+        },
+        {
+            "term": "coco ralado",
+            "category": "condimentos"
+        },
+        {
+            "term": "extrato de tomate",
+            "category": "condimentos"
+        },
+        {
+            "term": "molho ingles",
+            "category": "condimentos"
+        },
+        {
+            "term": "tabasco",
+            "category": "condimentos"
+        },
+        {
+            "term": "manteiga de amendoim",
+            "category": "condimentos"
+        },
+        {
+            "term": "creme de avela",
+            "category": "condimentos"
+        },
+        {
+            "term": "cafe",
+            "category": "bebidas"
+        },
+        {
+            "term": "filtro de cafe",
+            "category": "bebidas"
+        },
+        {
+            "term": "cha",
+            "category": "bebidas"
+        },
+        {
+            "term": "achocolatado",
+            "category": "bebidas"
+        },
+        {
+            "term": "suco",
+            "category": "bebidas",
+            "max_results": 100
+        },
+        {
+            "term": "refrigerante",
+            "category": "bebidas",
+            "max_results": 100
+        },
+        {
+            "term": "agua mineral",
+            "category": "bebidas"
+        },
+        {
+            "term": "cerveja",
+            "category": "bebidas",
+            "max_results": 180
+        },
+        {
+            "term": "guarana",
+            "category": "bebidas"
+        },
+        {
+            "term": "energetico",
+            "category": "bebidas"
+        },
+        {
+            "term": "vinho",
+            "category": "bebidas"
+        },
+        {
+            "term": "whisky",
+            "category": "bebidas"
+        },
+        {
+            "term": "vodka",
+            "category": "bebidas"
+        },
+        {
+            "term": "refresco em po",
+            "category": "bebidas"
+        },
+        {
+            "term": "leite fermentado",
+            "category": "bebidas"
+        },
+        {
+            "term": "detergente",
+            "category": "limpeza"
+        },
+        {
+            "term": "sabao em po",
+            "category": "limpeza"
+        },
+        {
+            "term": "sabao liquido",
+            "category": "limpeza"
+        },
+        {
+            "term": "agua sanitaria",
+            "category": "limpeza"
+        },
+        {
+            "term": "alcool",
+            "category": "limpeza"
+        },
+        {
+            "term": "alcool gel",
+            "category": "limpeza"
+        },
+        {
+            "term": "desinfetante",
+            "category": "limpeza"
+        },
+        {
+            "term": "limpador multiuso",
+            "category": "limpeza"
+        },
+        {
+            "term": "esponja",
+            "category": "limpeza"
+        },
+        {
+            "term": "pano",
+            "category": "limpeza"
+        },
+        {
+            "term": "saco de lixo",
+            "category": "limpeza"
+        },
+        {
+            "term": "papel aluminio",
+            "category": "limpeza"
+        },
+        {
+            "term": "papel filme",
+            "category": "limpeza"
+        },
+        {
+            "term": "luva de borracha",
+            "category": "limpeza"
+        },
+        {
+            "term": "inseticida",
+            "category": "limpeza"
+        },
+        {
+            "term": "amaciante",
+            "category": "limpeza"
+        },
+        {
+            "term": "alvejante",
+            "category": "limpeza"
+        },
+        {
+            "term": "fosforo",
+            "category": "limpeza"
+        },
+        {
+            "term": "vela",
+            "category": "limpeza"
+        },
+        {
+            "term": "rodo",
+            "category": "limpeza"
+        },
+        {
+            "term": "vassoura",
+            "category": "limpeza"
+        },
+        {
+            "term": "papel higienico",
+            "category": "higiene"
+        },
+        {
+            "term": "papel toalha",
+            "category": "higiene"
+        },
+        {
+            "term": "sabonete",
+            "category": "higiene"
+        },
+        {
+            "term": "sabonete liquido",
+            "category": "higiene"
+        },
+        {
+            "term": "shampoo",
+            "category": "higiene"
+        },
+        {
+            "term": "condicionador",
+            "category": "higiene"
+        },
+        {
+            "term": "creme de cabelo",
+            "category": "higiene"
+        },
+        {
+            "term": "desodorante",
+            "category": "higiene"
+        },
+        {
+            "term": "pasta de dente",
+            "category": "higiene"
+        },
+        {
+            "term": "escova de dentes",
+            "category": "higiene"
+        },
+        {
+            "term": "fio dental",
+            "category": "higiene"
+        },
+        {
+            "term": "enxaguante bucal",
+            "category": "higiene"
+        },
+        {
+            "term": "absorvente",
+            "category": "higiene"
+        },
+        {
+            "term": "lenco umedecido",
+            "category": "higiene"
+        },
+        {
+            "term": "lamina de barbear",
+            "category": "higiene"
+        },
+        {
+            "term": "protetor solar",
+            "category": "higiene"
+        },
+        {
+            "term": "serum",
+            "category": "higiene"
+        },
+        {
+            "term": "hidratante",
+            "category": "higiene"
+        },
+        {
+            "term": "reparador de pontas",
+            "category": "higiene"
+        },
+        {
+            "term": "tonalizante",
+            "category": "higiene"
+        },
+        {
+            "term": "cotonete",
+            "category": "higiene"
+        },
+        {
+            "term": "racao de gato",
+            "category": "pet"
+        },
+        {
+            "term": "racao de cachorro",
+            "category": "pet"
+        },
+        {
+            "term": "areia de gato",
+            "category": "pet"
+        },
+        {
+            "term": "petisco para gato",
+            "category": "pet"
+        },
+        {
+            "term": "petisco para cachorro",
+            "category": "pet"
+        },
+        {
+            "term": "pao frances",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "pao de forma",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "pao de queijo",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "biscoito cream cracker",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "biscoito agua e sal",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "biscoito recheado",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "salgadinho",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "amendoim",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "castanha",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "castanha de caju",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "chocolate",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "barra de cereal",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "miojo",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "cavaca",
+            "category": "padaria_cereais",
+            "notes": "RJ regional"
+        },
+        {
+            "term": "pizza congelada",
+            "category": "congelados"
+        },
+        {
+            "term": "nuggets",
+            "category": "congelados"
+        },
+        {
+            "term": "hamburguer",
+            "category": "congelados"
+        },
+        {
+            "term": "sorvete",
+            "category": "congelados"
+        },
+        {
+            "term": "batata frita congelada",
+            "category": "congelados"
+        },
+        {
+            "term": "lasanha congelada",
+            "category": "congelados"
+        }
+    ]
+}
