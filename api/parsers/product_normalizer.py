@@ -1,135 +1,214 @@
+# parsers/product_normalizer.py
+
 import re
 import unicodedata
-from typing import Dict, Tuple, List, Optional
+from typing import List, Dict, Optional
 from rapidfuzz import fuzz
 
+
+# -------------------------
+# BASIC NORMALIZATION
+# -------------------------
 
 def normalize_text(text: str) -> str:
     if not text:
         return ""
-    text = text.lower().strip()
-    text = unicodedata.normalize('NFD', text)
-    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
-    return text
+    text = text.lower()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
-def strip_noise(name: str) -> str:
-    if not name:
-        return ""
-    text = normalize_text(name)
-    text = re.sub(r'\b\d+[,.]?\d*\s*(kg|g|l|ml|un|unidade|unidades|pcs?|gr|grs?)\b', '', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+def strip_noise(text: str) -> str:
+    text = normalize_text(text)
+
+    noise_tokens = {
+        "oferta", "promo", "leve", "pague", "gratis",
+        "novo", "tradicional"
+    }
+
+    tokens = [t for t in text.split() if t not in noise_tokens]
+    return " ".join(tokens)
 
 
-def is_ingredient_modifier(normalized: str, term: str) -> bool:
-    if not normalized or not term:
+# -------------------------
+# FUZZY
+# -------------------------
+
+def compute_fuzzy_score(a: str, b: str) -> float:
+    if not a or not b:
+        return 0.0
+    return fuzz.token_set_ratio(a, b)
+
+
+# -------------------------
+# MATCHING LOGIC
+# -------------------------
+
+def is_salient_match(product: str, term: str) -> bool:
+    """
+    Relaxed but controlled:
+    - direct substring OR
+    - high fuzzy
+    """
+    if term in product:
+        return True
+
+    return compute_fuzzy_score(product, term) >= 75
+
+
+def is_ingredient_modifier(product: str, term: str) -> bool:
+    """
+    Prevent garbage matches like:
+    'arroz com cenoura' matching 'cenoura'
+    """
+    if not term:
         return False
-    term = normalize_text(term)
-    patterns = [
-        rf'\b(de|da|do|com)\s+{re.escape(term)}\b',
-        rf'\b{re.escape(term)}\s+(de|da|do|com)\b',
-    ]
-    for pattern in patterns:
-        if re.search(pattern, normalized):
+
+    tokens = product.split()
+    term_tokens = term.split()
+
+    # if term is too small relative to product, treat as modifier
+    if len(term_tokens) == 1 and len(tokens) > 3:
+        if tokens.count(term_tokens[0]) == 1:
             return True
+
     return False
 
 
-def is_salient_match(normalized: str, term: str) -> bool:
-    """Relaxed but still structural."""
-    if not normalized or not term:
-        return False
-    term_norm = normalize_text(term)
-    tokens = normalized.split()
-    if term_norm not in [normalize_text(t) for t in tokens]:
-        return False
-    if is_ingredient_modifier(normalized, term):
-        return False
-    return True
+# -------------------------
+# PACKAGE EXTRACTION
+# -------------------------
 
-
-def extract_package_size_and_unit(name: str) -> Tuple[Optional[float], Optional[str]]:
+def extract_package_size_and_unit(name: str):
     if not name:
         return None, None
-    patterns = [
-        r'(\d+[,.]?\d*)\s*(kg)', r'(\d+[,.]?\d*)\s*(g)\b',
-        r'(\d+[,.]?\d*)\s*(l)\b', r'(\d+[,.]?\d*)\s*(ml)',
-        r'(\d+[,.]?\d*)\s*(un|unidade|unidades|gr|grs?)',
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, name.lower())
-        if match:
-            try:
-                value = float(match.group(1).replace(',', '.'))
-                unit_raw = match.group(2)
-                if unit_raw in ['kg']: return value * 1000, 'g'
-                if unit_raw in ['l']: return value * 1000, 'ml'
-                if unit_raw in ['un', 'unidade', 'unidades']: return value, 'un'
-                if unit_raw in ['gr', 'grs']: return value, 'g'
-                return value, unit_raw
-            except ValueError:
-                continue
+
+    text = normalize_text(name)
+
+    match = re.search(r"(\d+(?:[.,]\d+)?)\s?(kg|g|mg|l|ml|un)", text)
+    if match:
+        size = match.group(1).replace(",", ".")
+        unit = match.group(2)
+        return float(size), unit
+
     return None, None
 
 
-def extract_brand(name: str) -> Optional[str]:
+# -------------------------
+# BRAND EXTRACTION
+# -------------------------
+
+def extract_brand(name: str, generic_name: Optional[str]) -> Optional[str]:
     if not name:
         return None
+
     text = normalize_text(name)
     tokens = text.split()
-    stopwords = {"de", "da", "do", "com", "integral", "parboilizado", "tipo", "light", "kg", "g", "ml", "l", "un"}
-    for token in reversed(tokens):
-        if token not in stopwords and len(token) > 2:
+
+    stopwords = {
+        "de", "da", "do", "com",
+        "integral", "parboilizado", "tipo", "light",
+        "kg", "g", "ml", "l", "un",
+        "fatiado", "congelado", "resfriado",
+        "refil", "litros", "pacote", "caixa",
+        "economico", "lavanda", "cuidado", "primavera",
+        "delicadas", "bebes", "bebe", "odor", "maciez"
+    }
+
+    # 🔥 KEY: remove generic tokens first
+    if generic_name:
+        generic_tokens = set(normalize_text(generic_name).split())
+    else:
+        generic_tokens = set()
+
+    for token in tokens:
+        if (
+            token not in stopwords
+            and token not in generic_tokens
+            and len(token) > 2
+            and not token.replace(".", "", 1).isdigit()
+        ):
             return token.title()
+
     return None
 
+# -------------------------
+# CORE CLASSIFIER
+# -------------------------
 
 def clean_and_classify(
     name: str,
     term: str,
     allow_list_terms: List[str]
 ) -> Dict:
+
     if not name or not term:
-        return {"generic_name": None, "normalized_name": "", "fuzzy_score": 0.0,
-                "parsed_brand": None, "package_size": None, "unit": None,
-                "is_noise": True, "confidence_flags": {}}
-    
+        return {
+            "generic_name": None,
+            "normalized_name": "",
+            "fuzzy_score": 0.0,
+            "parsed_brand": None,
+            "package_size": None,
+            "unit": None,
+            "is_noise": True,
+            "confidence_flags": {}
+        }
+
     normalized = strip_noise(name)
-    package_size, unit = extract_package_size_and_unit(name)
-    parsed_brand = extract_brand(name)
-    
-    generic_name = None
-    salient = False
     term_norm = normalize_text(term)
-    
-    # Specific-first classification
+
+    package_size, unit = extract_package_size_and_unit(name)
+
+    best_candidate = None
+    best_score = 0
+    best_length = 0
+
+    # 🔥 CORE FIX: hybrid ranking (length + fuzzy)
     for candidate in allow_list_terms:
-        if is_salient_match(normalized, candidate):
-            salient = True
-            if compute_fuzzy_score(normalized, candidate) >= 60:
-                generic_name = candidate
-                break
+        candidate_norm = normalize_text(candidate)
+
+        if not is_salient_match(normalized, candidate_norm):
+            continue
+
+        score = compute_fuzzy_score(normalized, candidate_norm)
+
+        if score < 60:
+            continue
+
+        # prioritize:
+        # 1. higher fuzzy
+        # 2. longer term (compound wins)
+        if (
+            score > best_score or
+            (score == best_score and len(candidate_norm) > best_length)
+        ):
+            best_candidate = candidate
+            best_score = score
+            best_length = len(candidate_norm)
+
+    generic_name = best_candidate
     
-    is_noise = generic_name is None or not salient or is_ingredient_modifier(normalized, term_norm)
-    
+    # Extract brand after finding generic name
+    parsed_brand = extract_brand(name, generic_name)
+
+    is_noise = (
+        generic_name is None
+        or is_ingredient_modifier(normalized, term_norm)
+    )
+
     return {
         "generic_name": generic_name,
         "normalized_name": normalized,
-        "fuzzy_score": compute_fuzzy_score(normalized, term),
+        "fuzzy_score": best_score,
         "parsed_brand": parsed_brand,
         "package_size": package_size,
         "unit": unit,
         "is_noise": is_noise,
         "confidence_flags": {
             "has_size": package_size is not None,
-            "good_fuzzy": compute_fuzzy_score(normalized, term) >= 85,
-            "salient_match": salient
+            "good_fuzzy": best_score >= 85,
+            "salient_match": best_candidate is not None
         }
     }
-
-
-def compute_fuzzy_score(normalized: str, term: str) -> float:
-    if not normalized or not term:
-        return 0.0
-    return fuzz.token_set_ratio(normalize_text(normalized), normalize_text(term))
