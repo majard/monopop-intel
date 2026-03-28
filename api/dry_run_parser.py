@@ -67,7 +67,14 @@ async def run_dry_run(
 
         shown = 0
         for prod in products:
-            result = clean_and_classify(prod["name"], term, allow_list_for_parser)
+            # Pass db_brand to the parser
+            result = clean_and_classify(
+                name=prod["name"],
+                term=term,
+                allow_list_terms=allow_list_for_parser,
+                db_brand=prod.get("brand")
+            )
+
             is_noise = result["is_noise"]
             has_size = result["package_size"] is not None
 
@@ -78,7 +85,7 @@ async def run_dry_run(
             if not is_noise:
                 term_stats["good"] += 1
 
-            # Show examples (always show first few + controlled by verbose)
+            # Show examples (first few + controlled by verbose)
             if shown < verbose or shown < 4:
                 print(f"  → {prod['name'][:85]:<85} | Generic: {result['generic_name'] or 'None':<12} | "
                       f"Noise: {is_noise} | Size: {result.get('package_size')} {result.get('unit') or ''} | "
@@ -94,7 +101,6 @@ async def run_dry_run(
         parse_rate = (term_stats["with_size"] / term_stats["total"]) * 100 if term_stats["total"] > 0 else 0
         print(f"  Noise rate: {noise_rate:.1f}% | Parse success: {parse_rate:.1f}% | Good: {term_stats['good']}\n")
 
-    # Overall summary
     overall_noise = (stats["noise_count"] / stats["total_products"]) * 100 if stats["total_products"] > 0 else 0
     overall_parse = (stats["with_size"] / stats["total_products"]) * 100 if stats["total_products"] > 0 else 0
 
