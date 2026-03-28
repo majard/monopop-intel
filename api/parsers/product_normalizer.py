@@ -4,6 +4,11 @@ import re
 import unicodedata
 from typing import List, Dict, Optional
 from rapidfuzz import fuzz
+import json
+from pathlib import Path
+
+# Load brands once at module import
+_KNOWN_BRANDS = None
 
 
 # -------------------------
@@ -72,16 +77,18 @@ def is_salient_match(product: str, term: str) -> bool:
 def is_ingredient_modifier(product: str, term: str) -> bool:
     """
     Distinguish between:
-    - "X de TERM" where TERM is ingredient (Steak de Frango)  
+    - "X de TERM" where TERM is ingredient (Steak de Frango)
     - "TERM de X" where TERM is the product (Esponja de Limpeza)
     """
     term_norm = normalize_text(term)
     product_norm = normalize_text(product)
     tokens = product_norm.split()
-    
+
     # Find term position
-    term_positions = [i for i, t in enumerate(tokens) if t == term_norm or term_norm in t]
-    
+    term_positions = [
+        i for i, t in enumerate(tokens) if t == term_norm or term_norm in t
+    ]
+
     for pos in term_positions:
         # Check if preceded by "de/da/do/com" (term is likely ingredient)
         if pos > 0 and tokens[pos - 1] in {"de", "da", "do", "com"}:
@@ -90,11 +97,11 @@ def is_ingredient_modifier(product: str, term: str) -> bool:
             if pos <= 2:
                 return False
             return True
-            
+
         # Check if followed by "de" (term is likely the main product)
         if pos < len(tokens) - 1 and tokens[pos + 1] in {"de", "da", "do"}:
             return False
-    
+
     return False
 
 
@@ -122,50 +129,117 @@ def extract_package_size_and_unit(name: str):
 # BRAND EXTRACTION
 # -------------------------
 
-def extract_brand_from_db(name: str, db_brand: Optional[str]) -> Optional[str]:
-    """Use the brand from the database as a strong signal if it appears in the name."""
-    if not db_brand or not name:
-        return None
-    db_norm = normalize_text(db_brand)
-    name_norm = normalize_text(name)
-    if db_norm in name_norm:
-        # Return the original casing from the name if possible
-        match = re.search(rf'\b({re.escape(db_brand)})\b', name, re.IGNORECASE)
-        return match.group(1).title() if match else db_brand.title()
-    return None
+def _load_known_brands():
+    global _KNOWN_BRANDS
+    if _KNOWN_BRANDS is None:
+        path = Path(__file__).parent / "brands.json"
+        _KNOWN_BRANDS = set()
+        if path.exists():
+            with open(path) as f:
+                data = json.load(f)
+                for b in data.get("brands", []):
+                    if b.get("active", True):
+                        _KNOWN_BRANDS.add(b["brand"].lower())
+                        if b.get("canonical"):
+                            _KNOWN_BRANDS.add(b["canonical"].lower())
+    return _KNOWN_BRANDS
 
 
-def extract_brand(name: str, generic_name: Optional[str], db_brand: Optional[str] = None) -> Optional[str]:
-    """Extract brand using DB hint first, then positional logic."""
-    # Priority 1: DB brand if present and actually appears in the name
+
+def extract_brand(
+    name: str, generic_name: Optional[str], db_brand: Optional[str] = None
+) -> Optional[str]:
+    """Extract brand: DB hint -> Known brands JSON -> Positional heuristics."""
+
+    # Priority 1: DB brand if present in name
     if db_brand:
         db_norm = normalize_text(db_brand)
-        name_norm = normalize_text(name)
-        if db_norm in name_norm:
-            # Return original casing from name
-            match = re.search(rf'\b({re.escape(db_brand)})\b', name, re.IGNORECASE)
+        if db_norm in normalize_text(name):
+            match = re.search(rf"\b({re.escape(db_brand)})\b", name, re.IGNORECASE)
             return match.group(1).title() if match else db_brand.title()
 
-    # Priority 2: Positional logic - look right after generic term
+    # Priority 2: Known brands from JSON (NEW)
+    known_brands = _load_known_brands()
+    if known_brands:
+        name_norm = normalize_text(name)
+        matches = [b for b in known_brands if b in name_norm]
+        matches.sort(key=len, reverse=True)  # "Pingo Doce" before "Pingo"
+
+        for brand in matches:
+            if re.search(rf"\b{re.escape(brand)}\b", name_norm):
+                match = re.search(rf"\b({re.escape(brand)})\b", name, re.IGNORECASE)
+                return match.group(1).title() if match else brand.title()
+
+    # Priority 3: Positional logic - look right after generic term
     if not name:
         return None
 
     text = normalize_text(name)
     tokens = text.split()
-    
+
     # Expanded stopwords + descriptors
     stopwords = {
-        "de", "da", "do", "com", "para", "em", "e", "sem",
-        "integral", "parboilizado", "tipo", "light", "diet", "zero",
-        "kg", "g", "mg", "ml", "l", "un", "unidades", "undidades",
-        "fatiado", "congelado", "resfriado",
-        "refil", "litros", "pacote", "caixa", "pote",
-        "economico", "economica", "lavanda", "cuidado", "primavera",
-        "delicadas", "bebe", "infantil", "baby", "odor", "maciez",
-        "sabor", "creme", "recheio", "cobertura", "calda", "grelhado",
-        "premium", "natural", "organico", "organica", "tradicional",
-        "polido", "branco", "vermelho", "preto",
-        "pedaco", "pedacos", "unidade", "fatia", "fatias"
+        "de",
+        "da",
+        "do",
+        "com",
+        "para",
+        "em",
+        "e",
+        "sem",
+        "integral",
+        "parboilizado",
+        "tipo",
+        "light",
+        "diet",
+        "zero",
+        "kg",
+        "g",
+        "mg",
+        "ml",
+        "l",
+        "un",
+        "unidades",
+        "undidades",
+        "fatiado",
+        "congelado",
+        "resfriado",
+        "refil",
+        "litros",
+        "pacote",
+        "caixa",
+        "pote",
+        "economico",
+        "economica",
+        "lavanda",
+        "cuidado",
+        "primavera",
+        "delicadas",
+        "bebe",
+        "infantil",
+        "baby",
+        "odor",
+        "maciez",
+        "sabor",
+        "creme",
+        "recheio",
+        "cobertura",
+        "calda",
+        "grelhado",
+        "premium",
+        "natural",
+        "organico",
+        "organica",
+        "tradicional",
+        "polido",
+        "branco",
+        "vermelho",
+        "preto",
+        "pedaco",
+        "pedacos",
+        "unidade",
+        "fatia",
+        "fatias",
     }
 
     if generic_name:
@@ -180,10 +254,12 @@ def extract_brand(name: str, generic_name: Optional[str], db_brand: Optional[str
             for j in range(i + 1, min(i + 4, len(tokens))):
                 candidate = tokens[j]
                 # Skip if stopword, part of generic, too short, or has digits
-                if (candidate in stopwords or 
-                    candidate in generic_tokens or 
-                    len(candidate) <= 2 or
-                    any(c.isdigit() for c in candidate)):
+                if (
+                    candidate in stopwords
+                    or candidate in generic_tokens
+                    or len(candidate) <= 2
+                    or any(c.isdigit() for c in candidate)
+                ):
                     continue
                 return candidate.title()
             # If we found generic but no brand after it, stop looking
@@ -191,13 +267,16 @@ def extract_brand(name: str, generic_name: Optional[str], db_brand: Optional[str
 
     # Fallback: last meaningful token (before any numbers)
     for token in reversed(tokens):
-        if (token not in stopwords and 
-            token not in generic_tokens and 
-            len(token) > 2 and
-            not any(c.isdigit() for c in token)):
+        if (
+            token not in stopwords
+            and token not in generic_tokens
+            and len(token) > 2
+            and not any(c.isdigit() for c in token)
+        ):
             return token.title()
 
     return None
+
 
 # -------------------------
 # CORE CLASSIFIER
@@ -205,10 +284,7 @@ def extract_brand(name: str, generic_name: Optional[str], db_brand: Optional[str
 
 
 def clean_and_classify(
-    name: str,
-    term: str,
-    allow_list_terms: List[str],
-    db_brand: Optional[str] = None
+    name: str, term: str, allow_list_terms: List[str], db_brand: Optional[str] = None
 ) -> Dict:
 
     if not name or not term:
