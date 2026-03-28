@@ -1,65 +1,59 @@
-**# Clean Generics & Parser Foundation**  
+Clean Generics & Parser Foundation
+Master Execution Spec. This document is the single source of truth for the feature. Update only on explicit decision.
+Last updated: 2026-03-28
 
-**Last updated:** 2026-03-27 
+Overview
+Mintel provides market price intelligence for the Monopop ecosystem. Current search and history endpoints return raw VTEX results that mix relevant products with noise. For a term such as "arroz", results include legitimate rice items alongside "biscoito de arroz" and "massa de arroz".
+This spec defines the minimal changes needed to produce cleaner results grouped by generic term while preserving all existing behavior. The parsed data will support Monopop’s unit system (v1.7.0) by supplying reliable unit and package_size for reference prices, per-unit normalization, and import.
 
----
+Goals for v1
 
-## Goal of v1
+Reduce obvious noise in results for allow-list terms.
+Populate parsed fields in the existing products table.
+Deliver a simple new endpoint that demonstrates improved relevance.
+Keep the parser extensible for future cross-store matching, brand handling, and Monopop export.
+Maintain backward compatibility for all existing endpoints and legacy products.
 
-Prove the minimal viable loop:  
-**raw VTEX name → parser → generic_name → cleaner results**  
 
-Success = when searching "arroz", we see mostly actual rice (different brands/sizes) with dramatically less noise ("biscoito de arroz", "massa de arroz").
+Scope for v1
+In scope
 
-This directly enables the Monopop bridge (usable unit + package data for reference prices and per-unit normalization).
+Add nullable columns to the products table.
+Implement a parser with small, single-responsibility functions.
+Manual backfill script with visible report.
+New minimal /generics/{term} endpoint.
+Use latest price per product (observations < 7 days old are considered fresh).
 
-Existing `/history/*` and `/search` endpoints remain untouched.
+Out of scope for v1
 
----
+New tables.
+Automatic parsing during cron runs.
+Complex brand fuzzy matching or full cross-store variant logic.
+Rich statistics or advanced certainty scoring in the endpoint.
+Monopop export endpoint.
 
-## Core Decisions (locked)
 
-- Extend existing `products` table only (no new tables in v1).
-- Parser is the single source of truth for cleaning and classification.
-- Manual backfill + visible report (same style as cron).
-- Data freshness: latest price per product (if < 7 days old → fresh enough).
-- Specific-first classification from allow_list.
-- Start extremely simple on strip_noise and brand extraction; iterate based on real data.
-
----
-
-## Schema Changes (v1)
-
-Add these nullable columns to `products` (in `init_schema`):
-
-```sql
-ALTER TABLE products 
+Schema Changes
+Add the following nullable columns to the products table (in db.py init_schema):
+SQLALTER TABLE products 
   ADD COLUMN generic_name TEXT,
   ADD COLUMN parsed_brand TEXT,
   ADD COLUMN package_size REAL,
   ADD COLUMN unit TEXT,                    -- 'g', 'ml', 'un'
   ADD COLUMN has_package_size BOOLEAN DEFAULT FALSE,
   ADD COLUMN is_noise BOOLEAN DEFAULT FALSE;
-```
+No indexes are added in v1.
 
----
-
-## Parser Module (`parsers/product_normalizer.py`)
-
-**Core function (locked signature):**
-
-```python
-def clean_and_classify(
+Parser (parsers/product_normalizer.py)
+The parser is the single source of truth for name cleaning and classification.
+Core function
+Pythondef clean_and_classify(
     name: str,
     term: str,
-    allow_list_terms: list[str]   # ordered: most specific first
+    allow_list_terms: list[str]   # ordered most-specific first
 ) -> dict:
-```
-
-**Return dict (locked):**
-
-```json
-{
+Return value
+JSON{
   "generic_name": "arroz",
   "normalized_name": "arroz palmares original",
   "fuzzy_score": 92.3,
@@ -73,56 +67,45 @@ def clean_and_classify(
     "salient_match": true
   }
 }
-```
+Classification rules
 
-**Helper functions (start minimal):**
+Iterate allow_list_terms in order (specific first).
+Apply strip_noise then check for salient match (term appears early in the normalized name).
+Fuzzy score (rapidfuzz.token_set_ratio) is recorded for reporting but is not a hard gate.
+If no salient match is found after trying terms, set generic_name = None and is_noise = True.
 
-- `strip_noise(name: str) -> str`  
-  Very conservative: lowercase + unidecode + remove obvious numbers + units (e.g. "1kg", "500g", "1,5l").  
-  **Do NOT** start with a long manual list of qualifiers. Keep the list tiny and expand only when real data shows clear need.
+Helper functions
 
-- `extract_package_size_and_unit(name: str) -> tuple[float|None, str|None]`  
-  Conservative regex for common Brazilian formats. Normalize to atomic units. Fail gracefully to (None, None).  
-  **This is high priority** — critical for Monopop unit bridge.
+strip_noise(name: str) -> str
+Lowercase + unidecode + remove obvious numbers and units. Start with a small domain-specific list of common qualifiers (e.g., "integral", "parboilizado", "tipo1", "t1", "branco", "plus", "original"). Expand only based on real data.
+extract_package_size_and_unit(name: str) -> tuple[float|None, str|None]
+Conservative regex for Brazilian supermarket formats. Normalize to atomic units (grams, milliliters, units). Handle weight-variable Hortifruti items gracefully (do not force parsing when no explicit size is present).
+extract_brand(name: str) -> str|None
+Trivial extraction in v1. Use a minimal seed of known brands where obvious. Return None when ambiguous. Do not block the pipeline.
+is_salient_match(normalized: str, term: str) -> bool
+Simple check: term appears at the start or among the first tokens.
 
-- `extract_brand(name: str) -> str|None`  
-  Trivial extraction only in v1. If not obvious → return None. Do not block the pipeline.
 
-- `compute_fuzzy_score(normalized: str, term: str) -> float`  
-  Use `rapidfuzz.fuzz.token_set_ratio` (handles extra words well).  
+Backfill Script (backfill_clean_generics.py)
 
-- `is_salient_match(normalized: str, term: str) -> bool`  
-  Cheap gate: term appears at start of normalized name **or** in first few tokens. This cuts most obvious noise ("massa de arroz", "biscoito de arroz") without heavy logic.
+Idempotent by default: skip rows where generic_name is already set (add --force flag to reprocess).
+Process in batches.
+Produce a human-readable report including:
+Percentage of rows with generic_name set.
+Percentage with successful package_size/unit parsing.
+Fuzzy score distribution.
+Before/after examples (good and noisy).
+Top suspected noise items.
+Top unparsed sizes and brands.
 
-**Classification flow:**
-1. Try allow_list_terms in order (specific first).
-2. Strip noise → fuzzy_score ≥ 85 **AND** salient_match == True.
-3. First match wins → set `generic_name`.
-4. No good match → `generic_name = None`, `is_noise = True`.
 
----
+Run the script manually, similar to cron.py.
 
-## Implementation Order — Strict v1 Steps (do in this sequence)
-
-**Step 1: Samples only (safety first)**  
-Hardcode 10–20 real examples from the ARROZ JSON (and a few noisy ones).  
-Run `clean_and_classify` and inspect output.  
-Tune regex / salient check / threshold **before any DB work**.
-
-**Step 2: Dry-run on real data**  
-Run parser over 100–500 existing products.  
-Print before/after + scores. No DB writes yet.  
-Validate: does "arroz" look meaningfully cleaner?
-
-**Step 3: Backfill script** (`backfill_clean_generics.py`)  
-- Update columns in batches.  
-- Print full report: parse %, fuzzy buckets, good/noisy examples, top unparsed sizes/brands.  
-
-**Step 4: Simple endpoint** (`GET /generics/{term}`)  
-Minimal response for v1:
-
-```json
-{
+New Endpoint
+GET /generics/{term}
+Optional parameters: store, exclude_noise=true (default).
+Minimal response shape for v1
+JSON{
   "generic": "arroz",
   "products": [
     {
@@ -135,37 +118,51 @@ Minimal response for v1:
     }
   ]
 }
-```
+Implementation uses the new generic_name and is_noise columns for filtering.
 
-Use `WHERE generic_name = ? AND is_noise = false` (or similar).  
-No stats, no min/median yet.
+Implementation Order
 
----
+Exploration (10 minutes)
+Query real name distribution for a term (e.g., SELECT name FROM products WHERE term = 'arroz' ORDER BY random() LIMIT 50;).
+Samples
+Hardcode representative examples (including noise and Hortifruti cases). Test clean_and_classify and inspect output. Tune before any database changes.
+Dry run
+Run parser over 100–500 real products. Print results only.
+Partial backfill
+Process ~500 products and generate report.
+Full backfill + endpoint
+Complete backfill and add the new endpoint.
+Validation
+Manually confirm that results for "arroz" are meaningfully cleaner.
 
-## Monopop Export Considerations (kept in mind, not in v1)
 
-Parser gives us `unit` + `package_size` → easy mapping to `standardPackageSize` (chosen or simple mode later).  
-Export (future) will use one generic per term, latest fresh prices, lowest-certain preference with median fallback.
+Future Phases & Guiding Principles
+The v1 parser and parsed fields are designed as a foundation for the complete feature. Subsequent work will build directly on them without breaking changes.
+Overall vision (guiding star)
 
----
+Clean generics first (reduce noise, improve relevance).
+Optional drill-down by parsed_brand and package size.
+Cross-store comparison of the “same” item using generic_name + parsed_brand + package_size + unit (EAN as supplementary signal; downweight for Hortifruti where unreliable).
+Monopop export: one entry per generic term (Monopop does not support brands yet).
+Prices: prefer lowest “certain” price per store (good fuzzy + has_package_size + multi-store presence), fallback to median.
+Use latest fresh price (< 7 days old).
+standardPackageSize: use chosen package_size when user selects a specific variant; otherwise use mode (most common size) or simple default.
+JSON structure maps to Monopop models: Product (with unit and standardPackageSize), product_store_prices, product_base_prices.
+Legacy products without unit remain untouched.
 
-## What is explicitly out of scope for v1
 
-- Long manual strip lists  
-- Complex brand fuzzy extraction  
-- New tables or full T2/T3  
-- Automatic cron parsing  
-- Rich stats in /generics endpoint  
-- Full certainty scoring  
-- Monopop export endpoint  
+Key design principles applied
 
----
+No new tables in v1 (extend products only).
+Parser functions are small and independent for easy future extension (brand fuzzy, salient heuristics, noise rules, export logic).
+is_noise is a flag, not deletion, to allow inspection and tuning.
+generic_name column avoids heavy repeated joins or on-the-fly derivation.
+Parsing remains manual for v1 (products are stable enough); no automatic cron integration yet.
+All future phases reuse the same parser output and parsed columns.
 
-## Next after v1 success
+Deferred items (post-v1)
 
-Once the loop is proven (cleaner "arroz" results + parser working on real data), we will expand:
-- Better brand extraction
-- Cross-store matching (generic + brand + size)
-- Salient heuristics refinement
-- Monopop JSON export
-- etc.
+Full cross-store matching and variant logic.
+Advanced certainty scoring beyond basic flags.
+Monopop export endpoint and JSON generation.
+Rich UI statistics or hierarchy implementation.
