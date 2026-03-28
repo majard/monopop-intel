@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from db import get_pool
 
+
 async def main():
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -18,10 +19,18 @@ async def main():
               for r in rows]
     
     path = Path("parsers/brands.json")
-    with open(path, "w") as f:
-        json.dump({"version": "0.1", "brands": brands}, f, indent=2, ensure_ascii=False)
+    
+    # FIXED: proper UTF-8 + ensure_ascii=False to keep accents
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(
+            {"version": "0.1", "brands": brands}, 
+            f, 
+            indent=2, 
+            ensure_ascii=False   # This is the important part
+        )
     
     print(f"Exported {len(brands)} brands to {path}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

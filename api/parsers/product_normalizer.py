@@ -29,10 +29,15 @@ def normalize_text(text: str) -> str:
 def strip_noise(text: str) -> str:
     text = normalize_text(text)
 
-    noise_tokens = {"oferta", "promo", "leve", "pague", "gratis", "novo", "tradicional"}
+    # Expanded with safe terms observed in dry-run (flavor, promo, etc.)
+    noise_tokens = {
+        "oferta", "promo", "leve", "pague", "gratis", "novo", "tradicional",
+        "gelado", "sabor", "tipo", "integral", "parboilizado", "light", "diet",
+        "zero", "com", "para", "de", "p/", "c/", "refil"
+    }
 
     tokens = [t for t in text.split() if t not in noise_tokens]
-    return " ".join(tokens)
+    return " ".join(tokens)    
 
 
 # -------------------------
@@ -52,6 +57,7 @@ def compute_fuzzy_score(a: str, b: str) -> float:
 
 
 def is_salient_match(product: str, term: str) -> bool:
+
     """
     Strong "generic at the beginning" rule + support for multi-word terms.
     """
@@ -60,18 +66,31 @@ def is_salient_match(product: str, term: str) -> bool:
 
     product_norm = normalize_text(product)
     term_norm = normalize_text(term)
+    
 
-    # Strong beginning rule: term should be among the first 3 tokens
     tokens = product_norm.split()
     term_tokens = term_norm.split()
 
-    # For single-word terms: must be in first 2 tokens
+    # Single-word terms: must be among the first 2 tokens
     if len(term_tokens) == 1:
         return term_norm in tokens[:2]
 
-    # For multi-word terms: allow if it appears as a phrase early
+    # Multi-word: allow common connectors (para, p/, de, com) between parts
     term_phrase = " ".join(term_tokens)
-    return term_phrase in " ".join(tokens[:5])
+    product_joined = " ".join(tokens)
+
+    # Strong early check (first 6 tokens)
+    if term_phrase in " ".join(tokens[:6]):   # slightly more room, still early
+        return True
+
+    # Safe connector-aware check: allow "X para Y" / "X p/ Y" / "X de Y" if X and Y parts appear reasonably early
+    connectors = {"para", "p/", "de", "com", "com "}
+    for conn in connectors:
+        variant = term_norm.replace(" ", f" {conn} ")
+        if variant in product_joined and any(t in tokens[:7] for t in term_tokens):
+            return True
+
+    return False
 
 
 def is_ingredient_modifier(product: str, term: str) -> bool:
@@ -116,11 +135,55 @@ def extract_package_size_and_unit(name: str):
 
     text = normalize_text(name)
 
-    match = re.search(r"(\d+(?:[.,]\d+)?)\s?(kg|g|mg|l|ml|un)", text)
-    if match:
-        size = match.group(1).replace(",", ".")
-        unit = match.group(2)
-        return float(size), unit
+    patterns = [
+        # Compound: "4 x 100g", "c/ 6 x 50g", "pack com 6 unid de 100g"
+        # Retorna o tamanho da unidade individual, não o total
+        r"(?:c/|com|pack\s+com?)?\s*\d+\s*(?:x|un|unid|unidades?)\s*(?:de\s+)?(\d+[.,]?\d*)\s*(kg|g|mg|l|ml)",
+        
+        # Padrão principal: número + unidade
+        r"(\d+[.,]?\d*)\s*(kg|g|mg|l|ml|un|unid|unidade|litro|litros)",
+        
+        # Metros: "30cm x 7,5m", "4m x 30cm" — captura o comprimento (m)
+        r"(\d+[.,]?\d*)\s*(m)\b(?!\s*[lg])",  # evita "ml"
+        
+        # Contagem simples: "c/10", "c/ 50 unid"
+        r"c/\s*(\d+)\s*(unid|un|unidades?)?",
+    ]
+
+    for pattern in patterns:
+        matches = list(re.finditer(pattern, text, re.IGNORECASE))
+        if not matches:
+            continue
+        
+        match = matches[-1]  # último match = tamanho real
+        groups = [g for g in match.groups() if g is not None]
+        
+        if len(groups) < 1:
+            continue
+            
+        size_str = groups[0].replace(",", ".")
+        unit_raw = groups[1].lower() if len(groups) > 1 and groups[1] else "un"
+
+        try:
+            size = float(size_str)
+            
+            # Normalizar unidades
+            if unit_raw in {"un", "unid", "unidade", "unidades"}:
+                unit = "un"
+            elif unit_raw in {"litro", "litros"}:
+                unit, size = "ml", size * 1000
+            elif unit_raw == "kg":
+                unit, size = "g", size * 1000
+            elif unit_raw == "l":
+                unit, size = "ml", size * 1000
+            elif unit_raw == "m":
+                unit = "m"  # papel alumínio, rolo — não converter
+            else:
+                unit = unit_raw
+                
+            return size, unit
+        except (ValueError, TypeError):
+            continue
 
     return None, None
 
@@ -135,7 +198,7 @@ def _load_known_brands():
         path = Path(__file__).parent / "brands.json"
         _KNOWN_BRANDS = set()
         if path.exists():
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:   # <-- Fixed here
                 data = json.load(f)
                 for b in data.get("brands", []):
                     if b.get("active", True):
@@ -143,7 +206,6 @@ def _load_known_brands():
                         if b.get("canonical"):
                             _KNOWN_BRANDS.add(b["canonical"].lower())
     return _KNOWN_BRANDS
-
 
 
 def extract_brand(
@@ -282,7 +344,6 @@ def extract_brand(
 # CORE CLASSIFIER
 # -------------------------
 
-
 def clean_and_classify(
     name: str, term: str, allow_list_terms: List[str], db_brand: Optional[str] = None
 ) -> Dict:
@@ -306,10 +367,9 @@ def clean_and_classify(
 
     best_candidate = None
     best_score = 0
-    best_length = 0
 
-    # Hybrid ranking with preference for early appearance
-    for candidate in allow_list_terms:
+    # Most-specific first: longer terms preferred, but preserve original order stability
+    for candidate in sorted(allow_list_terms, key=len, reverse=True):
         candidate_norm = normalize_text(candidate)
 
         if not is_salient_match(normalized, candidate_norm):
@@ -320,15 +380,12 @@ def clean_and_classify(
         if score < 60:
             continue
 
-        # Prioritize terms that appear early
-        if candidate_norm.split()[0] in normalized.split()[:4] or score > best_score:
+        # Prefer early appearance of the candidate or better fuzzy score
+        if (candidate_norm.split()[0] in normalized.split()[:4]) or (score > best_score):
             best_candidate = candidate
             best_score = score
-            best_length = len(candidate_norm)
 
     generic_name = best_candidate
-
-    # Extract brand after finding generic name
     parsed_brand = extract_brand(name, generic_name, db_brand)
 
     is_noise = generic_name is None or is_ingredient_modifier(normalized, term_norm)
