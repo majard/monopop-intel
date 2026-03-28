@@ -164,3 +164,23 @@ Full cross-store matching and variant logic.
 Advanced certainty scoring beyond basic flags.
 Monopop export endpoint and JSON generation.
 Rich UI statistics or hierarchy implementation.
+
+### Current Parser Status (v1 — locked after dry-run tuning)
+
+The `clean_and_classify` function and its helpers are now considered stable for v1.
+
+**Achieved:**
+- Package size extraction rate ~93–94% on tested data (handles "500g", "1Kg", "1L", "c/50 Unid", "4Unid de 100g", etc.)
+- Noise rate stabilized around 21%
+- Support for common Brazilian patterns via connector-aware salient match
+- Proper UTF-8 handling for brands.json (accents like "Alemão", "Três Corações", "Nestlé")
+
+**Known limitations (acceptable for v1):**
+- Multi-word generic terms sometimes shorten (e.g. "feijao fradinho" or "feijao preto" may resolve to "feijao"). This is mitigated by salient_match and allow_list ordering but not eliminated.
+- Papel alumínio and similar roll products are parsed as length in meters (e.g. "7,5m"). Area-based normalization (width × length) is deferred to a future phase.
+- Some flavor/ingredient bleed remains (e.g. "sabor bacon", "com lentilha", "avela" items). Term-specific noise filtering will be applied at query/backfill time rather than in the parser.
+- Hortifruti / variable-weight items correctly receive `package_size = None` in many cases.
+
+These limitations are documented here as the single source of truth. They will be addressed in later phases without breaking changes to the parsed columns.
+
+The parser remains small, single-responsibility, and extensible.
