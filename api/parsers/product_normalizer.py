@@ -10,6 +10,7 @@ from rapidfuzz import fuzz
 # BASIC NORMALIZATION
 # -------------------------
 
+
 def normalize_text(text: str) -> str:
     if not text:
         return ""
@@ -23,10 +24,7 @@ def normalize_text(text: str) -> str:
 def strip_noise(text: str) -> str:
     text = normalize_text(text)
 
-    noise_tokens = {
-        "oferta", "promo", "leve", "pague", "gratis",
-        "novo", "tradicional"
-    }
+    noise_tokens = {"oferta", "promo", "leve", "pague", "gratis", "novo", "tradicional"}
 
     tokens = [t for t in text.split() if t not in noise_tokens]
     return " ".join(tokens)
@@ -35,6 +33,7 @@ def strip_noise(text: str) -> str:
 # -------------------------
 # FUZZY
 # -------------------------
+
 
 def compute_fuzzy_score(a: str, b: str) -> float:
     if not a or not b:
@@ -46,40 +45,56 @@ def compute_fuzzy_score(a: str, b: str) -> float:
 # MATCHING LOGIC
 # -------------------------
 
+
 def is_salient_match(product: str, term: str) -> bool:
     """
-    Relaxed but controlled:
-    - direct substring OR
-    - high fuzzy
+    Strong "generic at the beginning" rule + support for multi-word terms.
     """
-    if term in product:
-        return True
+    if not product or not term:
+        return False
 
-    return compute_fuzzy_score(product, term) >= 75
+    product_norm = normalize_text(product)
+    term_norm = normalize_text(term)
+
+    # Strong beginning rule: term should be among the first 3 tokens
+    tokens = product_norm.split()
+    term_tokens = term_norm.split()
+
+    # For single-word terms: must be in first 2 tokens
+    if len(term_tokens) == 1:
+        return term_norm in tokens[:2]
+
+    # For multi-word terms: allow if it appears as a phrase early
+    term_phrase = " ".join(term_tokens)
+    return term_phrase in " ".join(tokens[:5])
 
 
 def is_ingredient_modifier(product: str, term: str) -> bool:
     """
-    Prevent garbage matches like:
-    'arroz com cenoura' matching 'cenoura'
+    Only flag as modifier if the term appears AFTER 'de/da/do/com' 
+    or is clearly a flavor/secondary component.
+    Do NOT flag "Esponja de Limpeza..." as modifier — "esponja" is the main product.
     """
     if not term:
         return False
 
-    tokens = product.split()
-    term_tokens = term.split()
+    term_norm = normalize_text(term)
+    product_norm = normalize_text(product)
 
-    # if term is too small relative to product, treat as modifier
-    if len(term_tokens) == 1 and len(tokens) > 3:
-        if tokens.count(term_tokens[0]) == 1:
-            return True
+    # Strong modifier patterns: term is secondary
+    if re.search(rf'\b(de|da|do|com)\s+{re.escape(term_norm)}\b', product_norm):
+        return True
+
+    # Also catch " [term] de X " where term is flavor/ingredient
+    if re.search(rf'\b{re.escape(term_norm)}\s+(de|da|do|com)\b', product_norm):
+        return True
 
     return False
-
 
 # -------------------------
 # PACKAGE EXTRACTION
 # -------------------------
+
 
 def extract_package_size_and_unit(name: str):
     if not name:
@@ -100,7 +115,9 @@ def extract_package_size_and_unit(name: str):
 # BRAND EXTRACTION
 # -------------------------
 
+
 def extract_brand(name: str, generic_name: Optional[str]) -> Optional[str]:
+    """Brand usually comes right after the generic term."""
     if not name:
         return None
 
@@ -108,22 +125,60 @@ def extract_brand(name: str, generic_name: Optional[str]) -> Optional[str]:
     tokens = text.split()
 
     stopwords = {
-        "de", "da", "do", "com",
-        "integral", "parboilizado", "tipo", "light",
-        "kg", "g", "ml", "l", "un",
-        "fatiado", "congelado", "resfriado",
-        "refil", "litros", "pacote", "caixa",
-        "economico", "lavanda", "cuidado", "primavera",
-        "delicadas", "bebes", "bebe", "odor", "maciez"
+        "de",
+        "da",
+        "do",
+        "com",
+        "integral",
+        "parboilizado",
+        "tipo",
+        "light",
+        "kg",
+        "g",
+        "ml",
+        "l",
+        "un",
+        "fatiado",
+        "congelado",
+        "resfriado",
+        "refil",
+        "litros",
+        "pacote",
+        "caixa",
+        "economico",
+        "lavanda",
+        "cuidado",
+        "primavera",
+        "delicadas",
+        "bebe",
+        "odor",
+        "maciez",
+        "sabor",
+        "creme",
+        "recheio",
+        "cobertura",
+        "calda",
+        "grelhado",
     }
 
-    # 🔥 KEY: remove generic tokens first
     if generic_name:
         generic_tokens = set(normalize_text(generic_name).split())
     else:
         generic_tokens = set()
 
-    for token in tokens:
+    # Look for brand right after generic (your hint)
+    for i, token in enumerate(tokens):
+        if token in generic_tokens and i + 1 < len(tokens):
+            next_token = tokens[i + 1]
+            if (
+                next_token not in stopwords
+                and len(next_token) > 2
+                and not next_token.replace(".", "", 1).isdigit()
+            ):
+                return next_token.title()
+
+    # Fallback: last meaningful token
+    for token in reversed(tokens):
         if (
             token not in stopwords
             and token not in generic_tokens
@@ -134,15 +189,13 @@ def extract_brand(name: str, generic_name: Optional[str]) -> Optional[str]:
 
     return None
 
+
 # -------------------------
 # CORE CLASSIFIER
 # -------------------------
 
-def clean_and_classify(
-    name: str,
-    term: str,
-    allow_list_terms: List[str]
-) -> Dict:
+
+def clean_and_classify(name: str, term: str, allow_list_terms: List[str]) -> Dict:
 
     if not name or not term:
         return {
@@ -153,7 +206,7 @@ def clean_and_classify(
             "package_size": None,
             "unit": None,
             "is_noise": True,
-            "confidence_flags": {}
+            "confidence_flags": {},
         }
 
     normalized = strip_noise(name)
@@ -165,7 +218,7 @@ def clean_and_classify(
     best_score = 0
     best_length = 0
 
-    # 🔥 CORE FIX: hybrid ranking (length + fuzzy)
+    # Hybrid ranking with preference for early appearance
     for candidate in allow_list_terms:
         candidate_norm = normalize_text(candidate)
 
@@ -177,26 +230,18 @@ def clean_and_classify(
         if score < 60:
             continue
 
-        # prioritize:
-        # 1. higher fuzzy
-        # 2. longer term (compound wins)
-        if (
-            score > best_score or
-            (score == best_score and len(candidate_norm) > best_length)
-        ):
+        # Prioritize terms that appear early
+        if candidate_norm.split()[0] in normalized.split()[:4] or score > best_score:
             best_candidate = candidate
             best_score = score
             best_length = len(candidate_norm)
 
     generic_name = best_candidate
-    
+
     # Extract brand after finding generic name
     parsed_brand = extract_brand(name, generic_name)
 
-    is_noise = (
-        generic_name is None
-        or is_ingredient_modifier(normalized, term_norm)
-    )
+    is_noise = generic_name is None or is_ingredient_modifier(normalized, term_norm)
 
     return {
         "generic_name": generic_name,
@@ -209,6 +254,6 @@ def clean_and_classify(
         "confidence_flags": {
             "has_size": package_size is not None,
             "good_fuzzy": best_score >= 85,
-            "salient_match": best_candidate is not None
-        }
+            "salient_match": best_candidate is not None,
+        },
     }
