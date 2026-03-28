@@ -1,4 +1,4 @@
-Clean Generics & Parser Foundation
+#Clean Generics & Parser Foundation
 Master Execution Spec. This document is the single source of truth for the feature. Update only on explicit decision.
 Last updated: 2026-03-28
 
@@ -42,7 +42,7 @@ SQLALTER TABLE products
   ADD COLUMN unit TEXT,                    -- 'g', 'ml', 'un'
   ADD COLUMN has_package_size BOOLEAN DEFAULT FALSE,
   ADD COLUMN is_noise BOOLEAN DEFAULT FALSE;
-No indexes are added in v1.
+No indexes are added in v1. Note: has_package_size may be redundant with package_size IS NOT NULL; keep for v1 only if needed for query patterns.
 
 Parser (parsers/product_normalizer.py)
 The parser is the single source of truth for name cleaning and classification.
@@ -50,7 +50,8 @@ Core function
 Pythondef clean_and_classify(
     name: str,
     term: str,
-    allow_list_terms: list[str]   # ordered most-specific first
+    allow_list_terms: list[str],   # ordered most-specific first
+    db_brand: Optional[str] = None
 ) -> dict:
 Return value
 JSON{
@@ -73,23 +74,27 @@ Iterate allow_list_terms in order (specific first).
 Apply strip_noise then check for salient match (term appears early in the normalized name).
 Fuzzy score (rapidfuzz.token_set_ratio) is recorded for reporting but is not a hard gate.
 If no salient match is found after trying terms, set generic_name = None and is_noise = True.
+Strict categorization: Flavor/scent variants match their base product category, not the flavor term (e.g. "Refrigerante Limão" → generic refrigerante; "Detergente Capim Limão" → generic detergente).
 
 Helper functions
 
 strip_noise(name: str) -> str
-Lowercase + unidecode + remove obvious numbers and units. Start with a small domain-specific list of common qualifiers (e.g., "integral", "parboilizado", "tipo1", "t1", "branco", "plus", "original"). Expand only based on real data.
+Lowercase + unidecode + remove obvious numbers and units. Start with a small domain-specific list of common qualifiers. Expand only based on real data.
 extract_package_size_and_unit(name: str) -> tuple[float|None, str|None]
-Conservative regex for Brazilian supermarket formats. Normalize to atomic units (grams, milliliters, units). Handle weight-variable Hortifruti items gracefully (do not force parsing when no explicit size is present).
-extract_brand(name: str) -> str|None
-Trivial extraction in v1. Use a minimal seed of known brands where obvious. Return None when ambiguous. Do not block the pipeline.
+Conservative regex for Brazilian supermarket formats. Handle Brazilian decimal commas ("1,5kg"). Normalize to atomic units. Handle weight-variable Hortifruti items gracefully (null if no explicit size).
+extract_brand(name: str, generic_name: Optional[str], db_brand: Optional[str] = None) -> str|None
+Priority: DB brand (if reliable and appears in name) → known brands from JSON → positional heuristics (brand usually right after generic). Skip "Hortifruti" when meaningless.
 is_salient_match(normalized: str, term: str) -> bool
-Simple check: term appears at the start or among the first tokens.
+Strong "generic at the beginning" rule + support for multi-word terms.
+is_ingredient_modifier(product: str, term: str) -> bool
+Distinguish "X de TERM" where TERM is ingredient (noise for TERM) vs "TERM de X" where TERM is the product.
 
 
 Backfill Script (backfill_clean_generics.py)
 
 Idempotent by default: skip rows where generic_name is already set (add --force flag to reprocess).
 Process in batches.
+Join against latest fresh price_points (< 7 days old) for price selection.
 Produce a human-readable report including:
 Percentage of rows with generic_name set.
 Percentage with successful package_size/unit parsing.
@@ -122,18 +127,12 @@ Implementation uses the new generic_name and is_noise columns for filtering.
 
 Implementation Order
 
-Exploration (10 minutes)
-Query real name distribution for a term (e.g., SELECT name FROM products WHERE term = 'arroz' ORDER BY random() LIMIT 50;).
-Samples
-Hardcode representative examples (including noise and Hortifruti cases). Test clean_and_classify and inspect output. Tune before any database changes.
-Dry run
-Run parser over 100–500 real products. Print results only.
-Partial backfill
-Process ~500 products and generate report.
-Full backfill + endpoint
-Complete backfill and add the new endpoint.
-Validation
-Manually confirm that results for "arroz" are meaningfully cleaner.
+Exploration (10 minutes) — Query real name distribution.
+Samples — Hardcode representative examples. Test and tune.
+Dry run — Run parser over 100–500 real products. Print results only.
+Partial backfill — Process ~500 products and generate report.
+Full backfill + endpoint — Complete backfill and add the new endpoint.
+Validation — Manually confirm "arroz" results are meaningfully cleaner.
 
 
 Future Phases & Guiding Principles
@@ -150,14 +149,13 @@ standardPackageSize: use chosen package_size when user selects a specific varian
 JSON structure maps to Monopop models: Product (with unit and standardPackageSize), product_store_prices, product_base_prices.
 Legacy products without unit remain untouched.
 
-
 Key design principles applied
 
 No new tables in v1 (extend products only).
-Parser functions are small and independent for easy future extension (brand fuzzy, salient heuristics, noise rules, export logic).
+Parser functions are small and independent for easy future extension.
 is_noise is a flag, not deletion, to allow inspection and tuning.
 generic_name column avoids heavy repeated joins or on-the-fly derivation.
-Parsing remains manual for v1 (products are stable enough); no automatic cron integration yet.
+Parsing remains manual for v1.
 All future phases reuse the same parser output and parsed columns.
 
 Deferred items (post-v1)
