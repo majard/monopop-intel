@@ -51,6 +51,10 @@
             "max_results": 130
         },
         {
+            "term": "massa",
+            "category": "graos_massas"
+        },
+        {
             "term": "macarrao integral",
             "category": "graos_massas"
         },
