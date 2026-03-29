@@ -266,8 +266,37 @@ async def history_by_product(
             for r in series
         ],
     }
-    
+
+
 # ── Clean Generics v1 ───────────────────────────────────────────────────────
+
+
+@app.get("/generics")
+async def list_generics(
+    q: str = Query(None, description="Optional filter by generic name"),
+):
+    """List all unique generic_names with basic stats."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        query = """
+            SELECT 
+                generic_name as generic,
+                COUNT(*) as count,
+                COUNT(CASE WHEN package_size IS NOT NULL THEN 1 END) as with_size,
+                COUNT(CASE WHEN is_noise = true THEN 1 END) as noise_count
+            FROM products 
+            WHERE generic_name IS NOT NULL
+        """
+        params: list = []
+        if q and q.strip():
+            query += " AND generic_name ILIKE $1"
+            params.append(f"%{q.strip()}%")
+
+        query += " GROUP BY generic_name ORDER BY generic_name ASC"
+
+        rows = await conn.fetch(query, *params)
+
+    return [dict(r) for r in rows]
 
 @app.get("/generics/{term}")
 async def get_generics(
@@ -308,16 +337,16 @@ async def get_generics(
                 p.unit,
                 p.is_noise,
                 MAX(pp.price) as price,
-                MAX(pp.scrape_date) as scrape_date
+                MAX(pp.available) as available
             FROM products p
             LEFT JOIN price_points pp 
                 ON p.id = pp.product_id 
                 AND pp.scrape_date >= $2
             WHERE {where_clause}
             GROUP BY p.id, p.name, p.store, p.parsed_brand, p.package_size, p.unit, p.is_noise
-            ORDER BY price ASC NULLS LAST, p.name
         """, *params, fresh_cutoff)
 
+    # Build products list
     products = []
     for r in rows:
         products.append({
@@ -328,7 +357,17 @@ async def get_generics(
             "unit": r["unit"],
             "parsed_brand": r["parsed_brand"],
             "is_noise": r["is_noise"],
+            "available": bool(r["available"]) if r["available"] is not None else True,
         })
+
+    # Sort exactly like history does
+    products.sort(
+        key=lambda x: (
+            not x["available"],                    # available first
+            x["price"] is None,                    # has price before no price
+            x["price"] or 0,                       # then cheapest first
+        )
+    )
 
     return {
         "generic": term,
@@ -338,6 +377,5 @@ async def get_generics(
             "fresh_cutoff": fresh_cutoff.isoformat(),
             "excluded_noise": exclude_noise,
             "store_filter": store,
-            "total_raw": len(rows)  # for debugging
         }
     }
