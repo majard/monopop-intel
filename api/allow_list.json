@@ -866,6 +866,10 @@
             "max_results": 420
         },
         {
+            "term": "ovo de pascoa",
+            "category": "padaria_cereais"
+        },
+        {
             "term": "barra de cereal",
             "category": "padaria_cereais"
         },

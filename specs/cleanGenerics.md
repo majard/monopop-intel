@@ -134,23 +134,30 @@ Partial backfill — Process ~500 products and generate report.
 Full backfill + endpoint — Complete backfill and add the new endpoint.
 Validation — Manually confirm "arroz" results are meaningfully cleaner.
 
-### Post-Backfill Observations (full run on 18,541 products — 2026-03-28)
+### Post-Backfill & Endpoint Observations (full run on 18,541 products — 2026-03-28)
 
+**Metrics after full backfill:**
 - Generic name set: 74.2%
 - Noise flagged: 25.8%
 - Package size parsed: 89.3%
 - Average fuzzy score: 74.2
 
-**Top generics**: cerveja, chocolate, leite, frango, iogurte, suco, batata, macarrao, sabonete, arroz
+**Top generics by count:** cerveja (543), chocolate (534), leite (477), frango (392), iogurte (356), suco (316), batata (289), macarrao (259), sabonete (256), arroz (241)
 
-**Known limitations (v1)**:
-- Multi-word generics sometimes shorten (e.g. feijao fradinho → feijao)
-- "ovos" family remains noisy (flavor/ingredient bleed)
-- Some meat/poultry items have unparsed sizes (sold by weight without explicit number)
-- Papel alumínio is parsed as length in meters
+**Known limitations (v1 - acceptable):**
+- Noise rate ~26% on full catalog — mainly flavor/ingredient bleed (e.g. "mini chip de arroz", "cereal infantil", "ovo de páscoa", "Kinder ovo").
+- Some multi-word generics still shorten (e.g. "feijao fradinho" → "feijao", "feijao preto" → "feijao").
+- "ovos"/"ovo" family remains noisy (not fully resolved by salient_match).
+- Some meat/poultry items have unparsed sizes (sold by weight without explicit number).
+- `is_noise` flag is currently returned by the endpoint but provides limited value — term-specific noise filtering may be revisited later.
+- Papel alumínio is parsed as length in meters (area-based logic deferred).
 
-These will be addressed in future phases without breaking changes.
+**Positive notes:**
+- Heavy lifting of generic assignment is working well (e.g. "ovomaltine" no longer pollutes "ovo").
+- Package size extraction is reliable for most packaged goods.
+- Same product can appear under multiple terms without duplication (thanks to UNIQUE(vtex_product_id, store)), but we should be careful about the order of insertion to not insert the product under the wrong term.
 
+These observations will guide future tuning without breaking changes to the parsed columns or endpoint contract.
 
 Future Phases & Guiding Principles
 The v1 parser and parsed fields are designed as a foundation for the complete feature. Subsequent work will build directly on them without breaking changes.
