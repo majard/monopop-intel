@@ -134,6 +134,23 @@ Partial backfill — Process ~500 products and generate report.
 Full backfill + endpoint — Complete backfill and add the new endpoint.
 Validation — Manually confirm "arroz" results are meaningfully cleaner.
 
+### Post-Backfill Observations (full run on 18,541 products — 2026-03-28)
+
+- Generic name set: 74.2%
+- Noise flagged: 25.8%
+- Package size parsed: 89.3%
+- Average fuzzy score: 74.2
+
+**Top generics**: cerveja, chocolate, leite, frango, iogurte, suco, batata, macarrao, sabonete, arroz
+
+**Known limitations (v1)**:
+- Multi-word generics sometimes shorten (e.g. feijao fradinho → feijao)
+- "ovos" family remains noisy (flavor/ingredient bleed)
+- Some meat/poultry items have unparsed sizes (sold by weight without explicit number)
+- Papel alumínio is parsed as length in meters
+
+These will be addressed in future phases without breaking changes.
+
 
 Future Phases & Guiding Principles
 The v1 parser and parsed fields are designed as a foundation for the complete feature. Subsequent work will build directly on them without breaking changes.
