@@ -38,12 +38,20 @@ export default function RootLayout({
               </p>
             </div>
 
-            <Link
-              href="/history"
-              className="text-xs font-mono text-zinc-500 hover:text-emerald-400 transition-colors"
-            >
-              histórico
-            </Link>
+            <div className="flex items-center gap-6">
+              <Link
+                href="/history"
+                className="text-xs font-mono text-zinc-500 hover:text-emerald-400 transition-colors"
+              >
+                histórico
+              </Link>
+              <Link
+                href="/generics"
+                className="text-xs font-mono text-zinc-500 hover:text-emerald-400 transition-colors"
+              >
+                básicos
+              </Link>
+            </div>
           </div>
         </nav>
         {children}
