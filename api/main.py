@@ -298,6 +298,7 @@ async def list_generics(
 
     return [dict(r) for r in rows]
 
+
 @app.get("/generics/{term}")
 async def get_generics(
     term: str,
@@ -306,7 +307,7 @@ async def get_generics(
 ):
     """
     Clean generics v1 endpoint.
-    Returns latest fresh price per product.
+    Returns latest fresh price per product, sorted like history.
     """
     if not term or not term.strip():
         raise HTTPException(status_code=422, detail="Term cannot be empty")
@@ -337,7 +338,7 @@ async def get_generics(
                 p.unit,
                 p.is_noise,
                 MAX(pp.price) as price,
-                MAX(pp.available) as available
+                bool_or(pp.available) as available          -- Fixed: use bool_or instead of MAX
             FROM products p
             LEFT JOIN price_points pp 
                 ON p.id = pp.product_id 
