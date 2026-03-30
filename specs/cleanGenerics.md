@@ -189,34 +189,38 @@ Advanced certainty scoring beyond basic flags.
 Monopop export endpoint and JSON generation.
 Rich UI statistics or hierarchy implementation.
 
-### Current Parser Status (v1 — locked after seed tuning, 2026-03-29)
+### Current Parser Status (v1 — stable after final tuning, 2026-03-30)
 
-The `clean_and_classify` function and its helpers are now considered stable for v1. We stopped active iteration on the core matching logic.
+The `clean_and_classify` function and helpers are now considered stable for v1. We have stopped active iteration on the core matching logic.
 
-**Key improvements in this final iteration:**
+**Key improvements in final iteration:**
 - Switched single-word terms to per-token `fuzz.ratio` in `compute_fuzzy_score` (with fallback to `token_set_ratio` for multi-word)
-- Reduced salient_match window to `+1` and raised minimum fuzzy threshold to 70
-- Added explicit `"massa"` term to `allow_list.json`
-- Better preservation of full multi-word generics (e.g. "feijao fradinho", "linguica toscana", "leite condensado", "agua de coco")
+- Reduced salient_match window to `+1`
+- Added explicit terms (`massa`, `queijo minas`, `cereal`, `macarrao instantaneo`, etc.)
+- Better preservation of full multi-word generics in most cases
 
+**Latest dry-run metrics (seed 666, 21 terms):**
+- Overall noise rate: ~27.5%
+- Package size parse rate: ~92.9%
 
-**Strong performers (near 0–15% noise):**
-- ketchup, absorvente, enxaguante bucal, salsicha, cerveja, agua sanitaria, linguica toscana, feijao fradinho/preto (full term usually preserved), salmao (flavors correctly ignored)
+**Strong performers:**
+- ketchup, absorvente, enxaguante bucal, salsicha, cerveja, agua sanitaria, linguica toscana, feijao fradinho/preto, salmao (flavors correctly ignored)
 
 **Acceptable but still noisy:**
-- tomate (~15%), coco (~20%), acucar mascavo (~20%), banana (~30%), manga (~10%), granola (~15%)
+- tomate (~15%), coco (~20%), acucar mascavo (~20%), banana (~30%), manga (~10%)
 
-**Remaining pain points (monitor / address post-v1):**
-- `areia de gato` and `racao de gato` (historically stubborn; now much improved in targeted tests but worth watching on full catalog)
-- `coxa sobrecoxa` and similar meat cuts (may need separate allow-list entries)
-- Flavor bleed on terms like `mel`, `vinho` ("ovinhos" leakage still occurs)
+**Remaining known gaps (accepted for v1):**
+- Some multi-word generics still get overridden by more specific variants (`arroz integral` → `arroz parboilizado`, `macarrao espaguete` → `macarrao integral`)
+- `areia de gato` occasionally resolves incorrectly
+- `papel aluminio` package_size parsing inconsistent for rolls
+- Minor cases like `biscoito recheado` and `chiclete` still show bleed
 
 **Positive notes:**
-- Multi-word generics are now respected far more consistently.
-- Same product can safely appear under multiple terms without duplication in the products table.
-- `is_noise` flag and `confidence_flags` provide useful debugging signals.
-- Package size extraction remains reliable (~93%).
+- Multi-word generics are respected far more consistently than early versions.
+- Same product can appear under multiple terms without duplication.
+- `is_noise` flag and `confidence_flags` remain useful for debugging.
+- Package size extraction is reliable for most packaged goods (~93%).
 
-The parser is now good enough for endpoint and minimal UI testing. Further refinements can happen after we validate real usage.
+The parser + regression tests (`tests/test_product_normalizer.py` with ~80 cases, 76 passing) are now good enough for endpoint and minimal UI testing. Further refinements can happen after real usage validation.
 
 Parser remains small, single-responsibility, and easy to extend.
