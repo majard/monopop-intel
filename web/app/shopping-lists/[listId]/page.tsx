@@ -23,6 +23,16 @@ export default function ShoppingListDetailPage() {
 
   const [newItemName, setNewItemName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  // Show loading only while the hook is still empty on initial render
+  if (lists.length === 0) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-6">
+        <div className="max-w-2xl mx-auto text-center py-20">
+          <div className="text-zinc-500">Carregando lista...</div>
+        </div>
+      </main>
+    );
+  }
 
   if (!list) {
     return (
@@ -54,7 +64,7 @@ export default function ShoppingListDetailPage() {
 
   const handleExport = () => {
     const { jsonString, fileName } = buildShoppingListExport(list);
-    
+
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -93,14 +103,14 @@ export default function ShoppingListDetailPage() {
               ←
             </button>
             <div>
-              <h1 
+              <h1
                 onClick={handleRename}
                 className="text-2xl font-bold text-white cursor-pointer hover:text-emerald-400 transition-colors"
               >
                 {list.name}
               </h1>
               <p className="text-zinc-500 text-sm">
-                {list.items.length} item{list.items.length !== 1 ? 's' : ''} • 
+                {list.items.length} item{list.items.length !== 1 ? 's' : ''} •
                 atualizado {new Date(list.updatedAt).toLocaleDateString('pt-BR')}
               </p>
             </div>
