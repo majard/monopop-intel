@@ -63,6 +63,8 @@ def strip_noise(text: str) -> str:
 # -------------------------
 
 def compute_fuzzy_score(a: str, b: str) -> float:
+    SINGLE_TOKEN_PENALTY = 0.8
+    NO_MATCH_PENALTY = 0.1
     if not a or not b:
         return 0.0
 
@@ -82,10 +84,20 @@ def compute_fuzzy_score(a: str, b: str) -> float:
             score = fuzz.ratio(token, b_norm)   # per token, using basic ratio
             if score > best:
                 best = score
-    else:
-        return fuzz.token_set_ratio(a_norm, b_norm)
 
-    return best
+    else:
+        a_norm_stripped = strip_noise(a_norm)
+        b_norm_stripped = strip_noise(b_norm)
+        b_tokens_stripped = b_norm_stripped.split()
+        no_match_count = 0
+        for token in b_tokens_stripped:
+            if token not in a_norm_stripped:
+                no_match_count += 1
+
+
+        return fuzz.partial_ratio(a_norm_stripped, b_norm_stripped) * (1 - (no_match_count * NO_MATCH_PENALTY))
+
+    return best * SINGLE_TOKEN_PENALTY
 
 # -------------------------
 # MATCHING LOGIC
@@ -107,11 +119,16 @@ def is_salient_match(product: str, term: str) -> bool:
     window_size = len(term_tokens) + 1
     window = " ".join(tokens[:window_size])
 
+
     if len(term_tokens) == 1:
         return fuzz.partial_ratio(term, window) >= 80
 
+
     # Multi-word: strict threshold, but allows insertions like "de"
-    return fuzz.partial_ratio(term, window) >= 90
+    stripped_tokens = strip_noise(product_norm).split()
+    window = " ".join(stripped_tokens[:window_size])
+
+    return fuzz.partial_ratio(strip_noise(term), window) >= 70
 
 
 def is_ingredient_modifier(product: str, term: str) -> bool:
