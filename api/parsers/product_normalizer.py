@@ -41,8 +41,6 @@ def strip_noise(text: str) -> str:
         "gelado",
         "sabor",
         "tipo",
-        "integral",
-        "parboilizado",
         "light",
         "diet",
         "zero",
@@ -63,8 +61,8 @@ def strip_noise(text: str) -> str:
 # -------------------------
 
 def compute_fuzzy_score(a: str, b: str) -> float:
-    SINGLE_TOKEN_PENALTY = 0.8
-    NO_MATCH_PENALTY = 0.1
+    SINGLE_TOKEN_PENALTY = 0.82
+    NO_MATCH_PENALTY = 0.2
     if not a or not b:
         return 0.0
 
@@ -83,6 +81,8 @@ def compute_fuzzy_score(a: str, b: str) -> float:
         for token in a_tokens:
             score = fuzz.ratio(token, b_norm)   # per token, using basic ratio
             if score > best:
+                if b_norm == "vinho":
+                    print(f"Token: {token}, Score: {score}")
                 best = score
 
     else:
@@ -91,7 +91,10 @@ def compute_fuzzy_score(a: str, b: str) -> float:
         b_tokens_stripped = b_norm_stripped.split()
         no_match_count = 0
         for token in b_tokens_stripped:
-            if token not in a_norm_stripped:
+            if b_norm == "macarrao integral":
+                print(f"\n\n\nToken: {token}, A norm stripped: {a_norm_stripped}, B norm stripped: {b_norm_stripped}")
+                print(f"Fuzz ratio: {fuzz.partial_ratio(token, a_norm_stripped)}")
+            if fuzz.partial_ratio(token, a_norm_stripped) < 80:
                 no_match_count += 1
 
 
@@ -285,8 +288,6 @@ def extract_brand(
         "em",
         "e",
         "sem",
-        "integral",
-        "parboilizado",
         "tipo",
         "light",
         "diet",
