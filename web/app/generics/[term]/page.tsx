@@ -231,44 +231,50 @@ export default async function GenericTermPage({
                                                 globalBestPerUnit.variantIndex === i;
 
                                             return (
-                                                <div
+                                                <Link
                                                     key={i}
-                                                    className={`relative flex justify-between items-center px-4 py-3 rounded border ${isCheapestInGroup ? "border-emerald-500/40" : "border-zinc-800"}`}
+                                                    href={`/generics/${encodeURIComponent(decoded)}/${v.product_id || ''}`}
+                                                    className="block group"
                                                 >
-                                                    {isCheapestInGroup && (
-                                                        <div className="absolute -top-2 left-3 bg-zinc-950 px-1">
-                                                            <div className="bg-emerald-500 text-zinc-950 text-[10px] font-bold px-2.5 py-0.5 rounded">
-                                                                melhor preço
+                                                    <div className={`relative flex justify-between items-center px-4 py-3 rounded border ${isCheapestInGroup ? "border-emerald-500/40" : "border-zinc-800"} hover:border-emerald-500 transition-colors`}>
+                                                        {isCheapestInGroup && (
+                                                            <div className="absolute -top-2 left-3 bg-zinc-950 px-1">
+                                                                <div className="bg-emerald-500 text-zinc-950 text-[10px] font-bold px-2.5 py-0.5 rounded">
+                                                                    melhor preço
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
+                                                        )}
 
-                                                    {isGlobalBestPerUnit && (
-                                                        <div className="absolute -top-2 right-3 bg-zinc-950 px-1">
-                                                            <div className="bg-amber-500 text-zinc-950 text-[10px] font-bold px-2.5 py-0.5 rounded">
-                                                                melhor por unidade
+                                                        {isGlobalBestPerUnit && (
+                                                            <div className="absolute -top-2 right-3 bg-zinc-950 px-1">
+                                                                <div className="bg-amber-500 text-zinc-950 text-[10px] font-bold px-2.5 py-0.5 rounded">
+                                                                    melhor por unidade
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
-
-                                                    <div className="text-sm pr-8">
-                                                        <span className="text-zinc-400">{STORE_LABELS[v.store] ?? v.store}</span>
-                                                        {" • "}
-                                                        <span className="text-zinc-100">{v.name}</span>
-                                                        {v.normalized_size && (
-                                                            <span className="text-zinc-500 ml-2">({v.normalized_size})</span>
                                                         )}
-                                                    </div>
 
-                                                    <div className="text-right shrink-0">
-                                                        <div className={`font-medium ${isCheapestInGroup ? "text-emerald-400" : ""}`}>
-                                                            {formatPrice(v.price)}
+                                                        <div className="text-sm pr-8">
+                                                            <span className="text-zinc-400">{STORE_LABELS[v.store] ?? v.store}</span>
+                                                            {" • "}
+                                                            <span className="text-zinc-100">{v.name}</span>
+                                                            {v.normalized_size && (
+                                                                <span className="text-zinc-500 ml-2">({v.normalized_size})</span>
+                                                            )}
                                                         </div>
-                                                        {v.display_per_unit && (
-                                                            <div className="text-xs text-zinc-500">{v.display_per_unit}</div>
-                                                        )}
+
+                                                        <div className="text-right shrink-0">
+                                                            <div className={`font-medium ${isCheapestInGroup ? "text-emerald-400" : ""}`}>
+                                                                {formatPrice(v.price)}
+                                                            </div>
+                                                            {v.display_per_unit && (
+                                                                <div className="text-xs text-zinc-500">{v.display_per_unit}</div>
+                                                            )}
+                                                            <span className="text-xs text-emerald-400 opacity-70 group-hover:opacity-100 transition-opacity mt-1 inline-block">
+                                                                ver detalhes →
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                </Link>
                                             );
                                         })}
                                     </div>
@@ -284,48 +290,54 @@ export default async function GenericTermPage({
                                 Math.abs(p.price_per_unit - globalBestPerUnit.value) < 0.0001;
 
                             return (
-                                <div
+                                <Link
                                     key={i}
-                                    className="group bg-zinc-900 border border-zinc-800 hover:border-emerald-500 rounded-lg px-5 py-5 transition-colors flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative"
+                                    href={`/generics/${encodeURIComponent(decoded)}/${p.product_id || ''}`}
+                                    className="group block bg-zinc-900 border border-zinc-800 hover:border-emerald-500 rounded-lg px-5 py-5 transition-colors"
                                 >
-                                    {isGlobalBestPerUnit && (
-                                        <div className="absolute -top-2 right-4 bg-zinc-950 px-1">
-                                            <div className="bg-amber-500 text-zinc-950 text-[10px] font-bold px-2.5 py-0.5 rounded">
-                                                melhor por unidade
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative">
+                                        {isGlobalBestPerUnit && (
+                                            <div className="absolute -top-2 right-4 bg-zinc-950 px-1">
+                                                <div className="bg-amber-500 text-zinc-950 text-[10px] font-bold px-2.5 py-0.5 rounded">
+                                                    melhor por unidade
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[15px] text-zinc-100 group-hover:text-white truncate">
+                                                {p.name}
+                                            </p>
+                                            <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                                                <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                                                    {STORE_LABELS[p.store] ?? p.store}
+                                                </span>
+                                                {p.parsed_brand && (
+                                                    <span className="px-2 py-0.5 rounded bg-zinc-800/70 text-zinc-500 border border-zinc-800">
+                                                        {p.parsed_brand}
+                                                    </span>
+                                                )}
+                                                {p.normalized_size && (
+                                                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                        {p.normalized_size}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
-                                    )}
 
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-[15px] text-zinc-100 group-hover:text-white truncate">
-                                            {p.name}
-                                        </p>
-                                        <div className="flex flex-wrap gap-2 mt-2 text-xs">
-                                            <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
-                                                {STORE_LABELS[p.store] ?? p.store}
+                                        <div className="text-right">
+                                            <p className="text-emerald-400 font-bold text-[20px]">
+                                                {formatPrice(p.price)}
+                                            </p>
+                                            {p.display_per_unit && (
+                                                <p className="text-xs text-zinc-500">{p.display_per_unit}</p>
+                                            )}
+                                            <span className="text-xs text-emerald-400 opacity-70 group-hover:opacity-100 transition-opacity mt-2 inline-block">
+                                                ver detalhes →
                                             </span>
-                                            {p.parsed_brand && (
-                                                <span className="px-2 py-0.5 rounded bg-zinc-800/70 text-zinc-500 border border-zinc-800">
-                                                    {p.parsed_brand}
-                                                </span>
-                                            )}
-                                            {p.normalized_size && (
-                                                <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                                    {p.normalized_size}
-                                                </span>
-                                            )}
                                         </div>
                                     </div>
-
-                                    <div className="text-right">
-                                        <p className="text-emerald-400 font-bold text-[20px]">
-                                            {formatPrice(p.price)}
-                                        </p>
-                                        {p.display_per_unit && (
-                                            <p className="text-xs text-zinc-500">{p.display_per_unit}</p>
-                                        )}
-                                    </div>
-                                </div>
+                                </Link>
                             );
                         })}
                     </div>
