@@ -343,16 +343,14 @@ async def get_generics(
         True, description="Exclude noise items (default: true)"
     ),
     group: str = Query(
-        None,
-        description="Grouping mode: 'brand_size' | 'size_only' | 'brand_only' (default: flat list)",
+        None, description="Grouping mode: 'brand_size' | 'size_only' | 'brand_only'"
+    ),
+    sort_by: str = Query(
+        "price", description="Sort groups by: 'price' (total) or 'price_per_unit'"
     ),
 ):
     """
-    Clean generics v1 + cross-store grouping.
-    Three modes:
-    - brand_size : group by brand + size + unit
-    - size_only  : group by size + unit, with list of brands inside
-    - brand_only : group by brand only, with all sizes/variants inside
+    Clean generics v1 + cross-store grouping with price-per-unit normalization.
     """
     if not term or not term.strip():
         raise HTTPException(status_code=422, detail="Term cannot be empty")
@@ -364,23 +362,23 @@ async def get_generics(
             detail=f"Invalid group. Use one of: {valid_groups} or omit for flat list.",
         )
 
+    if sort_by not in ("price", "price_per_unit"):
+        sort_by = "price"
+
     pool = await get_pool()
     fresh_cutoff = date.today() - timedelta(days=7)
 
-    # Build WHERE clause and params dynamically (consistent with history endpoints)
+    # Build WHERE clause dynamically
     where = ["p.generic_name = $1"]
     params: list = [term]
 
     if exclude_noise:
         where.append("p.is_noise = false")
-
     if store:
         where.append(f"p.store = ${len(params) + 1}")
         params.append(store)
 
     where_clause = " AND ".join(where)
-
-    # fresh_cutoff is always the last parameter
     params.append(fresh_cutoff)
     fresh_pos = len(params)
 
@@ -388,50 +386,78 @@ async def get_generics(
         rows = await conn.fetch(
             f"""
             SELECT 
-                p.name, 
-                p.store, 
-                p.parsed_brand, 
-                p.package_size, 
-                p.unit,
-                p.is_noise, 
-                p.generic_name,
+                p.name, p.store, p.parsed_brand, p.package_size, p.unit,
+                p.is_noise, p.generic_name,
                 MAX(pp.price) as price,
                 bool_or(pp.available) as available
             FROM products p
             LEFT JOIN price_points pp 
-                ON p.id = pp.product_id 
-                AND pp.scrape_date >= ${fresh_pos}
+                ON p.id = pp.product_id AND pp.scrape_date >= ${fresh_pos}
             WHERE {where_clause}
-            GROUP BY 
-                p.id, p.name, p.store, p.parsed_brand, 
-                p.package_size, p.unit, p.is_noise, p.generic_name
+            GROUP BY p.id, p.name, p.store, p.parsed_brand, p.package_size, p.unit, p.is_noise, p.generic_name
             """,
             *params,
         )
 
-    # Build flat products list
+    # Build enriched products with normalized values
     products = []
     for r in rows:
+        price = float(r["price"]) if r["price"] is not None else None
+        size = float(r["package_size"]) if r["package_size"] is not None else None
+        unit = r["unit"]
+
+        price_per_unit = None  # atomic: R$/g or R$/ml
+        normalized_size = None  # display: "1 kg", "500 ml", "1 L"
+        display_per_unit = None  # display: "R$ 5,37/kg"
+
+        if price is not None and size is not None and size > 0 and unit:
+            if unit == "g":
+                price_per_unit = price / size  # R$/g
+                if size >= 1000:
+                    normalized_size = f"{size / 1000:.1f} kg".replace(".0", "")
+                    display_per_unit = f"R$ {price_per_unit * 1000:.2f}/kg"
+                else:
+                    normalized_size = f"{size:.0f} g"
+                    display_per_unit = f"R$ {price_per_unit:.4f}/g"
+
+            elif unit == "ml":
+                price_per_unit = price / size  # R$/ml
+                if size >= 1000:
+                    normalized_size = f"{size / 1000:.1f} L".replace(".0", "")
+                    display_per_unit = f"R$ {price_per_unit * 1000:.2f}/L"
+                else:
+                    normalized_size = f"{size:.0f} ml"
+                    display_per_unit = f"R$ {price_per_unit:.4f}/ml"
+
+            else:
+                # fallback for 'un' etc.
+                normalized_size = f"{size}{unit}"
+                price_per_unit = price / size
+                display_per_unit = f"R$ {price_per_unit:.2f}/{unit}"
+
         products.append(
             {
                 "name": r["name"],
                 "store": r["store"],
-                "price": float(r["price"]) if r["price"] is not None else None,
-                "package_size": float(r["package_size"])
-                if r["package_size"] is not None
-                else None,
-                "unit": r["unit"],
+                "price": price,
+                "package_size": size,
+                "unit": unit,
                 "parsed_brand": r["parsed_brand"],
-                "is_noise": r["is_noise"],
                 "available": bool(r["available"])
                 if r["available"] is not None
                 else True,
+                "price_per_unit": round(price_per_unit, 6)
+                if price_per_unit is not None
+                else None,  # atomic for sorting
+                "normalized_size": normalized_size,
+                "display_per_unit": display_per_unit,
                 "canonical_key": make_canonical_key(
-                    r["generic_name"], r["parsed_brand"], r["package_size"], r["unit"]
+                    r["generic_name"], r["parsed_brand"], size, unit
                 ),
             }
         )
 
+    # Default sort for flat mode
     products.sort(
         key=lambda x: (not x["available"], x["price"] is None, x["price"] or 0)
     )
@@ -445,19 +471,21 @@ async def get_generics(
                 "fresh_cutoff": fresh_cutoff.isoformat(),
                 "excluded_noise": exclude_noise,
                 "store_filter": store,
+                "sort_by": sort_by,
             },
         }
 
-    # === GROUPING LOGIC ===
+    # === GROUPING ===
     from collections import defaultdict
 
-    groups: defaultdict = defaultdict(
+    groups_dict: defaultdict = defaultdict(
         lambda: {
             "canonical_key": "",
             "generic": term,
             "brand": None,
             "package_size": None,
             "unit": None,
+            "normalized_size": None,
             "variants": [],
             "price_stats": {"min": None, "max": None, "avg": None},
             "brands": set(),
@@ -470,26 +498,30 @@ async def get_generics(
             brand_val = p.get("parsed_brand")
             size_val = p.get("package_size")
             unit_val = p.get("unit")
+            norm_size = p.get("normalized_size")
         elif group == "size_only":
-            key = make_canonical_key(
-                p.get("generic_name"), None, p.get("package_size"), p.get("unit")
-            )
+            key = make_canonical_key(None, None, p.get("package_size"), p.get("unit"))
             brand_val = None
             size_val = p.get("package_size")
             unit_val = p.get("unit")
+            norm_size = p.get("normalized_size")
         else:  # brand_only
-            key = make_canonical_key(
-                p.get("generic_name"), p.get("parsed_brand"), None, None
-            )
+            key = make_canonical_key(None, p.get("parsed_brand"), None, None)
             brand_val = p.get("parsed_brand")
             size_val = None
             unit_val = None
+            norm_size = None
 
-        g = groups[key]
-        g["canonical_key"] = key
-        g["brand"] = brand_val if group == "brand_size" else None
-        g["package_size"] = size_val
-        g["unit"] = unit_val
+        g = groups_dict[key]
+        g.update(
+            {
+                "canonical_key": key,
+                "brand": brand_val if group == "brand_size" else None,
+                "package_size": size_val,
+                "unit": unit_val,
+                "normalized_size": norm_size,
+            }
+        )
 
         g["variants"].append(
             {
@@ -497,9 +529,9 @@ async def get_generics(
                 "name": p["name"],
                 "price": p["price"],
                 "available": p["available"],
-                "parsed_brand": p.get("parsed_brand"),
-                "package_size": p.get("package_size"),
-                "unit": p.get("unit"),
+                "price_per_unit": p["price_per_unit"],  # atomic R$/g or R$/ml
+                "normalized_size": p["normalized_size"],
+                "display_per_unit": p["display_per_unit"],
             }
         )
 
@@ -508,20 +540,19 @@ async def get_generics(
 
     # Finalize groups
     grouped_list = []
-    for g in groups.values():
-        prices = [
+    for g in groups_dict.values():
+        valid_prices = [
             v["price"]
             for v in g["variants"]
             if v["price"] is not None and v["available"]
         ]
-        if prices:
-            g["price_stats"] = {
-                "min": min(prices),
-                "max": max(prices),
-                "avg": round(sum(prices) / len(prices), 2),
-            }
-        else:
-            g["price_stats"] = {"min": None, "max": None, "avg": None}
+        g["price_stats"] = {
+            "min": min(valid_prices) if valid_prices else None,
+            "max": max(valid_prices) if valid_prices else None,
+            "avg": round(sum(valid_prices) / len(valid_prices), 2)
+            if valid_prices
+            else None,
+        }
 
         if group in ("size_only", "brand_only"):
             g["brand"] = sorted(list(g["brands"])) if g["brands"] else None
@@ -529,9 +560,25 @@ async def get_generics(
         del g["brands"]
         grouped_list.append(g)
 
+    # Sort groups
+    if sort_by == "price_per_unit":
+        grouped_list.sort(
+            key=lambda g: min(
+                (
+                    v["price_per_unit"]
+                    for v in g["variants"]
+                    if v["price_per_unit"] is not None and v["available"]
+                ),
+                default=float("inf"),
+            )
+        )
+    else:  # default: total price
+        grouped_list.sort(key=lambda g: g["price_stats"]["min"] or float("inf"))
+
     return {
         "generic": term,
         "group_mode": group,
+        "sort_by": sort_by,
         "count": len(grouped_list),
         "groups": grouped_list,
         "_meta": {
