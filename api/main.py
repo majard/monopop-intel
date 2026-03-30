@@ -268,7 +268,28 @@ async def history_by_product(
     }
 
 
-# ── Clean Generics v1 ───────────────────────────────────────────────────────
+# ── Clean Generics v1 + Cross-store Grouping ────────────────────────────────
+
+
+def make_canonical_key(
+    generic_name: str | None,
+    parsed_brand: str | None,
+    package_size: float | None,
+    unit: str | None,
+) -> str:
+    """
+    Cross-store grouping v1.
+    Returns a readable canonical key in format: generic|brand|size|unit
+    None values become empty string. Brand is lowercased for matching.
+    Size is formatted to 2 decimal places when present.
+    This is intentionally simple and debuggable for the MVP.
+    """
+    g = (generic_name or "").strip()
+    b = (parsed_brand or "").strip().lower()
+    s = f"{package_size:.2f}" if package_size is not None else ""
+    u = (unit or "").strip().lower()
+
+    return f"{g}|{b}|{s}|{u}"
 
 
 @app.get("/generics")
@@ -306,8 +327,9 @@ async def get_generics(
     exclude_noise: bool = Query(True, description="Exclude noise items (default: true)")
 ):
     """
-    Clean generics v1 endpoint.
-    Returns latest fresh price per product, sorted like history.
+    Clean generics v1 endpoint with cross-store grouping support.
+    Returns latest fresh price per product.
+    Now includes canonical_key for cross-store comparison.
     """
     if not term or not term.strip():
         raise HTTPException(status_code=422, detail="Term cannot be empty")
@@ -338,7 +360,7 @@ async def get_generics(
                 p.unit,
                 p.is_noise,
                 MAX(pp.price) as price,
-                bool_or(pp.available) as available          -- Fixed: use bool_or instead of MAX
+                bool_or(pp.available) as available
             FROM products p
             LEFT JOIN price_points pp 
                 ON p.id = pp.product_id 
@@ -359,6 +381,13 @@ async def get_generics(
             "parsed_brand": r["parsed_brand"],
             "is_noise": r["is_noise"],
             "available": bool(r["available"]) if r["available"] is not None else True,
+            # Cross-store grouping v1 - added field (backward compatible)
+            "canonical_key": make_canonical_key(
+                r["generic_name"] if "generic_name" in r else term,  # fallback
+                r["parsed_brand"],
+                r["package_size"],
+                r["unit"]
+            ),
         })
 
     # Sort exactly like history does
