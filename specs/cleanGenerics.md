@@ -189,22 +189,34 @@ Advanced certainty scoring beyond basic flags.
 Monopop export endpoint and JSON generation.
 Rich UI statistics or hierarchy implementation.
 
-### Current Parser Status (v1 — locked after dry-run tuning)
+### Current Parser Status (v1 — locked after seed tuning, 2026-03-29)
 
-The `clean_and_classify` function and its helpers are now considered stable for v1.
+The `clean_and_classify` function and its helpers are now considered stable for v1. We stopped active iteration on the core matching logic.
 
-**Achieved:**
-- Package size extraction rate ~93–94% on tested data (handles "500g", "1Kg", "1L", "c/50 Unid", "4Unid de 100g", etc.)
-- Noise rate stabilized around 21%
-- Support for common Brazilian patterns via connector-aware salient match
-- Proper UTF-8 handling for brands.json (accents like "Alemão", "Três Corações", "Nestlé")
+**Key improvements in this final iteration:**
+- Switched single-word terms to per-token `fuzz.ratio` in `compute_fuzzy_score` (with fallback to `token_set_ratio` for multi-word)
+- Reduced salient_match window to `+1` and raised minimum fuzzy threshold to 70
+- Added explicit `"massa"` term to `allow_list.json`
+- Better preservation of full multi-word generics (e.g. "feijao fradinho", "linguica toscana", "leite condensado", "agua de coco")
 
-**Known limitations (acceptable for v1):**
-- Multi-word generic terms sometimes shorten (e.g. "feijao fradinho" or "feijao preto" may resolve to "feijao"). This is mitigated by salient_match and allow_list ordering but not eliminated.
-- Papel alumínio and similar roll products are parsed as length in meters (e.g. "7,5m"). Area-based normalization (width × length) is deferred to a future phase.
-- Some flavor/ingredient bleed remains (e.g. "sabor bacon", "com lentilha", "avela" items). Term-specific noise filtering will be applied at query/backfill time rather than in the parser.
-- Hortifruti / variable-weight items correctly receive `package_size = None` in many cases.
 
-These limitations are documented here as the single source of truth. They will be addressed in later phases without breaking changes to the parsed columns.
+**Strong performers (near 0–15% noise):**
+- ketchup, absorvente, enxaguante bucal, salsicha, cerveja, agua sanitaria, linguica toscana, feijao fradinho/preto (full term usually preserved), salmao (flavors correctly ignored)
 
-The parser remains small, single-responsibility, and extensible.
+**Acceptable but still noisy:**
+- tomate (~15%), coco (~20%), acucar mascavo (~20%), banana (~30%), manga (~10%), granola (~15%)
+
+**Remaining pain points (monitor / address post-v1):**
+- `areia de gato` and `racao de gato` (historically stubborn; now much improved in targeted tests but worth watching on full catalog)
+- `coxa sobrecoxa` and similar meat cuts (may need separate allow-list entries)
+- Flavor bleed on terms like `mel`, `vinho` ("ovinhos" leakage still occurs)
+
+**Positive notes:**
+- Multi-word generics are now respected far more consistently.
+- Same product can safely appear under multiple terms without duplication in the products table.
+- `is_noise` flag and `confidence_flags` provide useful debugging signals.
+- Package size extraction remains reliable (~93%).
+
+The parser is now good enough for endpoint and minimal UI testing. Further refinements can happen after we validate real usage.
+
+Parser remains small, single-responsibility, and easy to extend.

@@ -296,7 +296,11 @@
             "max_results": 210
         },
         {
-            "term": "coxa sobrecoxa",
+            "term": "sobrecoxa",
+            "category": "proteinas"
+        },
+        {
+            "term": "coxa",
             "category": "proteinas"
         },
         {
