@@ -60,6 +60,7 @@ def strip_noise(text: str) -> str:
 # FUZZY
 # -------------------------
 
+
 def compute_fuzzy_score(a: str, b: str) -> float:
     SINGLE_TOKEN_PENALTY = 0.82
     NO_MATCH_PENALTY = 0.2
@@ -79,10 +80,8 @@ def compute_fuzzy_score(a: str, b: str) -> float:
 
     if len(b_tokens) == 1:
         for token in a_tokens:
-            score = fuzz.ratio(token, b_norm)   # per token, using basic ratio
+            score = fuzz.ratio(token, b_norm)  # per token, using basic ratio
             if score > best:
-                if b_norm == "vinho":
-                    print(f"Token: {token}, Score: {score}")
                 best = score
 
     else:
@@ -91,16 +90,15 @@ def compute_fuzzy_score(a: str, b: str) -> float:
         b_tokens_stripped = b_norm_stripped.split()
         no_match_count = 0
         for token in b_tokens_stripped:
-            if b_norm == "macarrao integral":
-                print(f"\n\n\nToken: {token}, A norm stripped: {a_norm_stripped}, B norm stripped: {b_norm_stripped}")
-                print(f"Fuzz ratio: {fuzz.partial_ratio(token, a_norm_stripped)}")
             if fuzz.partial_ratio(token, a_norm_stripped) < 80:
                 no_match_count += 1
 
-
-        return fuzz.partial_ratio(a_norm_stripped, b_norm_stripped) * (1 - (no_match_count * NO_MATCH_PENALTY))
+        return fuzz.partial_ratio(a_norm_stripped, b_norm_stripped) * (
+            1 - (no_match_count * NO_MATCH_PENALTY)
+        )
 
     return best * SINGLE_TOKEN_PENALTY
+
 
 # -------------------------
 # MATCHING LOGIC
@@ -117,15 +115,12 @@ def is_salient_match(product: str, term: str) -> bool:
     tokens = product_norm.split()
     term_tokens = term_norm.split()
 
-
     # Dynamic window: term length + 1 token of buffer
     window_size = len(term_tokens) + 1
     window = " ".join(tokens[:window_size])
 
-
     if len(term_tokens) == 1:
         return fuzz.partial_ratio(term, window) >= 80
-
 
     # Multi-word: strict threshold, but allows insertions like "de"
     stripped_tokens = strip_noise(product_norm).split()
@@ -383,10 +378,12 @@ def extract_brand(
 
 
 def clean_and_classify(
-    name: str, term: str, allow_list_terms: List[str], db_brand: Optional[str] = None
+    name: str,
+    term: Optional[str] = None,  # term is optional for backfill mode
+    allow_list_terms: List[str] = None,
+    db_brand: Optional[str] = None,
 ) -> Dict:
-
-    if not name or not term:
+    if not name or not allow_list_terms:
         return {
             "generic_name": None,
             "normalized_name": "",
@@ -399,7 +396,6 @@ def clean_and_classify(
         }
 
     normalized = strip_noise(name)
-    term_norm = normalize_text(term)
 
     package_size, unit = extract_package_size_and_unit(name)
 
@@ -420,15 +416,21 @@ def clean_and_classify(
         if score < 70:
             continue
 
-        # Simple score comparison - longer/better match wins
-        # Removed the dangerous "first word in first 4" condition
         if score > best_score:
             best_candidate = candidate
             best_score = score
 
     generic_name = best_candidate
     parsed_brand = extract_brand(name, generic_name, db_brand)
-    is_noise = generic_name is None or is_ingredient_modifier(normalized, term_norm)
+
+    # is_noise logic:
+    # - In dry-run mode (term provided): use ingredient_modifier check
+    # - In backfill mode (term=None): only noise if no generic found
+    if term is None:
+        is_noise = generic_name is None
+    else:
+        term_norm = normalize_text(term)
+        is_noise = generic_name is None or is_ingredient_modifier(normalized, term_norm)
 
     return {
         "generic_name": generic_name,

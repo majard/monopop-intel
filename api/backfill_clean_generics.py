@@ -1,22 +1,23 @@
-#!/usr/bin/env python3
-"""
-Manual backfill for clean generics v1 - with detailed report.
-"""
-
 import asyncio
 import argparse
 import json
 from pathlib import Path
-from datetime import date, timedelta
+from datetime import datetime
 from collections import Counter
 
 from db import get_pool, init_schema
 from parsers.product_normalizer import clean_and_classify
 
 
-async def backfill_clean_generics(force: bool = False, batch_size: int = 500, limit: int | None = None):
+async def backfill_clean_generics(force: bool = False, batch_size: int = 5000, limit: int | None = None):
+    start_time = datetime.now()
     await init_schema()
     pool = await get_pool()
+
+    # Load allow_list once
+    allow_list_path = Path(__file__).parent / "allow_list.json"
+    with open(allow_list_path, encoding="utf-8") as f:
+        allow_list_terms = [entry["term"] for entry in json.load(f)["terms"]]
 
     async with pool.acquire() as conn:
         total = await conn.fetchval("SELECT COUNT(*) FROM products")
@@ -25,14 +26,10 @@ async def backfill_clean_generics(force: bool = False, batch_size: int = 500, li
         limit_clause = f" LIMIT {limit}" if limit else ""
 
         rows = await conn.fetch(f"""
-            SELECT 
-                p.id,
-                p.name,
-                p.brand as db_brand,
-                p.store
-            FROM products p
+            SELECT id, name, brand as db_brand
+            FROM products
             {where}
-            ORDER BY p.id
+            ORDER BY id
             {limit_clause}
         """)
 
@@ -43,25 +40,58 @@ async def backfill_clean_generics(force: bool = False, batch_size: int = 500, li
     size_count = 0
     fuzzy_scores = []
     generic_counter = Counter()
-    noise_examples = []
     good_examples = []
+    noise_examples = []
     unparsed_size_examples = []
 
-    allow_list_path = Path(__file__).parent / "allow_list.json"
-    with open(allow_list_path, encoding="utf-8") as f:
-        allow_list_terms = [entry["term"] for entry in json.load(f)["terms"]]
-
     async with pool.acquire() as conn:
-        for i, row in enumerate(rows, 1):
-            try:
-                result = clean_and_classify(
-                    name=row["name"],
-                    term=row["name"],
-                    allow_list_terms=allow_list_terms,
-                    db_brand=row["db_brand"]
-                )
+        for i in range(0, len(rows), batch_size):
+            batch = rows[i:i + batch_size]
+            updates = []
 
-                await conn.execute("""
+            for row in batch:
+                try:
+                    result = clean_and_classify(
+                        name=row["name"],
+                        term=None,                    # backfill mode
+                        allow_list_terms=allow_list_terms,
+                        db_brand=row["db_brand"]
+                    )
+
+                    updates.append((
+                        result["generic_name"],
+                        result["parsed_brand"],
+                        result["package_size"],
+                        result["unit"],
+                        result["is_noise"],
+                        row["id"]
+                    ))
+
+                    updated += 1
+                    if result.get("is_noise"):
+                        noise_count += 1
+                        if len(noise_examples) < 5:
+                            noise_examples.append(row["name"])
+                    else:
+                        if len(good_examples) < 5:
+                            good_examples.append(f"{row['name']} → {result.get('generic_name')}")
+
+                    if result.get("package_size") is not None:
+                        size_count += 1
+                    elif any(c in row["name"].lower() for c in "gmlk"):
+                        if len(unparsed_size_examples) < 5:
+                            unparsed_size_examples.append(row["name"])
+
+                    fuzzy_scores.append(result.get("fuzzy_score", 0))
+                    if result.get("generic_name"):
+                        generic_counter[result["generic_name"]] += 1
+
+                except Exception as e:
+                    print(f"[error] Failed on product {row['id']}: {e}")
+
+            # Bulk update for this batch
+            if updates:
+                await conn.executemany("""
                     UPDATE products 
                     SET generic_name = $1,
                         parsed_brand = $2,
@@ -69,44 +99,16 @@ async def backfill_clean_generics(force: bool = False, batch_size: int = 500, li
                         unit = $4,
                         is_noise = $5
                     WHERE id = $6
-                """,
-                    result["generic_name"],
-                    result["parsed_brand"],
-                    result["package_size"],
-                    result["unit"],
-                    result["is_noise"],
-                    row["id"]
-                )
+                """, updates)
 
-                updated += 1
-                if result.get("is_noise"):
-                    noise_count += 1
-                    if len(noise_examples) < 5:
-                        noise_examples.append(row["name"])
-                else:
-                    if len(good_examples) < 5:
-                        good_examples.append(f"{row['name']} → {result.get('generic_name')}")
+            print(f"[progress] Processed {min(i + batch_size, len(rows))}/{len(rows)} products...")
 
-                if result.get("package_size") is not None:
-                    size_count += 1
-                else:
-                    if len(unparsed_size_examples) < 5 and "g" in row["name"].lower():
-                        unparsed_size_examples.append(row["name"])
-
-                fuzzy_scores.append(result.get("fuzzy_score", 0))
-                if result.get("generic_name"):
-                    generic_counter[result["generic_name"]] += 1
-
-                if i % batch_size == 0 or i == len(rows):
-                    print(f"[progress] Processed {i}/{len(rows)} products...")
-
-            except Exception as e:
-                print(f"[error] Failed on product {row['id']}: {e}")
+    duration = datetime.now() - start_time
 
     # Rich report
-    print("\n" + "="*60)
+    print("\n" + "="*80)
     print("BACKFILL REPORT - CLEAN GENERICS v1")
-    print("="*60)
+    print("="*80)
     print(f"Total processed          : {updated:,}")
     if updated > 0:
         print(f"Generic name set         : {updated - noise_count:,} ({(updated - noise_count)/updated*100:.1f}%)")
@@ -115,7 +117,11 @@ async def backfill_clean_generics(force: bool = False, batch_size: int = 500, li
         if fuzzy_scores:
             print(f"Average fuzzy score      : {sum(fuzzy_scores)/len(fuzzy_scores):.1f}")
 
-    print(f"\nTop generics (by count):")
+    print(f"\nDuration                 : {duration}")
+    print(f"Products per second      : {updated / duration.total_seconds():.1f}")
+    print(f"Batch size used          : {batch_size}")
+
+    print(f"\nTop 10 generics:")
     for gen, count in generic_counter.most_common(10):
         print(f"  • {gen}: {count:,}")
 
@@ -127,18 +133,18 @@ async def backfill_clean_generics(force: bool = False, batch_size: int = 500, li
     for ex in noise_examples:
         print(f"  ✗ {ex}")
 
-    print(f"\nUnparsed sizes (containing 'g'):")
+    print(f"\nUnparsed sizes (containing g/ml/k):")
     for ex in unparsed_size_examples:
         print(f"  ? {ex}")
 
-    print(f"\nBackfill completed at {date.today()}")
-    print("="*60)
+    print(f"\nBackfill completed at {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print("="*80)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Clean Generics Backfill v1 - Detailed Report")
+    parser = argparse.ArgumentParser(description="Fast + Rich Clean Generics Backfill v1")
     parser.add_argument("--force", action="store_true", help="Reprocess all rows")
-    parser.add_argument("--batch", type=int, default=500, help="Batch size")
+    parser.add_argument("--batch", type=int, default=5000, help="Batch size")
     parser.add_argument("--limit", type=int, help="Limit number of products (for testing)")
     args = parser.parse_args()
 
