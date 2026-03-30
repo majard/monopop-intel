@@ -346,11 +346,12 @@ async def get_generics(
         None, description="Grouping mode: 'brand_size' | 'size_only' | 'brand_only'"
     ),
     sort_by: str = Query(
-        "price", description="Sort groups by: 'price' (total) or 'price_per_unit'"
+        "price", description="Sort by: 'price' (total) or 'price_per_unit'"
     ),
 ):
     """
     Clean generics v1 + cross-store grouping with price-per-unit normalization.
+    Supports both grouped and flat modes with consistent sorting.
     """
     if not term or not term.strip():
         raise HTTPException(status_code=422, detail="Term cannot be empty")
@@ -368,7 +369,7 @@ async def get_generics(
     pool = await get_pool()
     fresh_cutoff = date.today() - timedelta(days=7)
 
-    # Build WHERE clause dynamically
+    # Build WHERE clause
     where = ["p.generic_name = $1"]
     params: list = [term]
 
@@ -399,38 +400,43 @@ async def get_generics(
             *params,
         )
 
-    # Build enriched products with normalized values
+        # Build enriched products with normalized values
     products = []
     for r in rows:
         price = float(r["price"]) if r["price"] is not None else None
         size = float(r["package_size"]) if r["package_size"] is not None else None
         unit = r["unit"]
 
-        price_per_unit = None  # atomic: R$/g or R$/ml
-        normalized_size = None  # display: "1 kg", "500 ml", "1 L"
-        display_per_unit = None  # display: "R$ 5,37/kg"
+        price_per_unit = None  # atomic base: R$/g or R$/ml (for sorting)
+        normalized_size = None  # display size
+        display_per_unit = None  # friendly display string
 
         if price is not None and size is not None and size > 0 and unit:
             if unit == "g":
-                price_per_unit = price / size  # R$/g
+                price_per_g = price / size
+                price_per_unit = price_per_g  # atomic = R$/g
+
                 if size >= 1000:
                     normalized_size = f"{size / 1000:.1f} kg".replace(".0", "")
-                    display_per_unit = f"R$ {price_per_unit * 1000:.2f}/kg"
+                    display_per_unit = f"R$ {price_per_g * 1000:.2f}/kg"
                 else:
+                    # For smaller packs, still show per kg for better comparison
                     normalized_size = f"{size:.0f} g"
-                    display_per_unit = f"R$ {price_per_unit:.4f}/g"
+                    display_per_unit = f"R$ {price_per_g * 1000:.2f}/kg"
 
             elif unit == "ml":
-                price_per_unit = price / size  # R$/ml
+                price_per_ml = price / size
+                price_per_unit = price_per_ml
+
                 if size >= 1000:
                     normalized_size = f"{size / 1000:.1f} L".replace(".0", "")
-                    display_per_unit = f"R$ {price_per_unit * 1000:.2f}/L"
+                    display_per_unit = f"R$ {price_per_ml * 1000:.2f}/L"
                 else:
                     normalized_size = f"{size:.0f} ml"
-                    display_per_unit = f"R$ {price_per_unit:.4f}/ml"
+                    display_per_unit = f"R$ {price_per_ml * 1000:.2f}/L"
 
             else:
-                # fallback for 'un' etc.
+                # fallback (un, etc.)
                 normalized_size = f"{size}{unit}"
                 price_per_unit = price / size
                 display_per_unit = f"R$ {price_per_unit:.2f}/{unit}"
@@ -448,7 +454,7 @@ async def get_generics(
                 else True,
                 "price_per_unit": round(price_per_unit, 6)
                 if price_per_unit is not None
-                else None,  # atomic for sorting
+                else None,
                 "normalized_size": normalized_size,
                 "display_per_unit": display_per_unit,
                 "canonical_key": make_canonical_key(
@@ -457,10 +463,19 @@ async def get_generics(
             }
         )
 
-    # Default sort for flat mode
-    products.sort(
-        key=lambda x: (not x["available"], x["price"] is None, x["price"] or 0)
-    )
+    # === SORTING FOR FLAT MODE ===
+    if sort_by == "price_per_unit":
+        products.sort(
+            key=lambda x: (
+                x["price_per_unit"]
+                if x["price_per_unit"] is not None and x["available"]
+                else float("inf")
+            )
+        )
+    else:
+        products.sort(
+            key=lambda x: (not x["available"], x["price"] is None, x["price"] or 0)
+        )
 
     if not group:
         return {
@@ -529,7 +544,7 @@ async def get_generics(
                 "name": p["name"],
                 "price": p["price"],
                 "available": p["available"],
-                "price_per_unit": p["price_per_unit"],  # atomic R$/g or R$/ml
+                "price_per_unit": p["price_per_unit"],
                 "normalized_size": p["normalized_size"],
                 "display_per_unit": p["display_per_unit"],
             }
@@ -572,7 +587,7 @@ async def get_generics(
                 default=float("inf"),
             )
         )
-    else:  # default: total price
+    else:
         grouped_list.sort(key=lambda g: g["price_stats"]["min"] or float("inf"))
 
     return {
