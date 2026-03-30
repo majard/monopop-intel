@@ -10,7 +10,6 @@ interface GenericProduct {
     package_size: number | null;
     unit: string | null;
     parsed_brand: string | null;
-    is_noise: boolean;
     available: boolean;
 }
 
@@ -39,7 +38,11 @@ interface GenericResponse {
     products?: GenericProduct[];
     groups?: Group[];
     group_mode?: string | null;
-    _meta: any;
+    _meta: {
+        fresh_cutoff: string;
+        excluded_noise: boolean;
+        store_filter: string | null;
+    };
 }
 
 const STORE_LABELS: Record<string, string> = {
@@ -63,12 +66,10 @@ function formatPrice(p: number | null): string {
 async function fetchGeneric(
     term: string,
     store?: string,
-    exclude_noise: boolean = true,
     group?: string
 ): Promise<GenericResponse | null> {
     const params = new URLSearchParams();
     if (store) params.set("store", store);
-    params.set("exclude_noise", String(exclude_noise));
     if (group) params.set("group", group);
 
     try {
@@ -90,21 +91,19 @@ export default async function GenericTermPage({
     params: Promise<{ term: string }>;
     searchParams: Promise<{
         store?: string;
-        exclude_noise?: string;
         group?: string;
     }>;
 }) {
     const { term } = await params;
     const sp = await searchParams;
     const decoded = decodeURIComponent(term);
-    const excludeNoise = sp.exclude_noise !== "false";
     const currentGroup = sp.group || "";
 
-    const data = await fetchGeneric(decoded, sp.store, excludeNoise, currentGroup || undefined);
+    const data = await fetchGeneric(decoded, sp.store, currentGroup || undefined);
 
     if (!data) notFound();
 
-    const isGrouped = !!data.group_mode && data.groups;
+    const isGrouped = !!data.group_mode && data.groups && data.groups.length > 0;
 
     return (
         <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono">
@@ -130,7 +129,6 @@ export default async function GenericTermPage({
                             key={value}
                             href={`?${new URLSearchParams({
                                 store: sp.store || "",
-                                exclude_noise: String(excludeNoise),
                                 ...(value && { group: value }),
                             }).toString()}`}
                             className={`px-5 py-2 text-sm rounded-t-lg transition-all whitespace-nowrap font-medium ${currentGroup === value
@@ -168,13 +166,16 @@ export default async function GenericTermPage({
 
                 {isGrouped && data.groups ? (
                     <div className="space-y-6">
-                        {data.groups.map((group, idx) => {
-                            const cheapest = group.variants.reduce((prev, curr) =>
-                                (curr.price && curr.available && (!prev.price || curr.price < prev.price)) ? curr : prev
-                            );
+                        {data.groups.map((group) => {
+                            // Find minimum available price safely
+                            const validPrices = group.variants
+                                .filter(v => v.price !== null && v.available)
+                                .map(v => v.price!);
+
+                            const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : null;
 
                             return (
-                                <div key={idx} className="bg-zinc-900 border border-zinc-800 rounded-lg p-5">
+                                <div key={group.canonical_key} className="bg-zinc-900 border border-zinc-800 rounded-lg p-5">
                                     <div className="flex justify-between mb-4">
                                         <div>
                                             <div className="font-semibold text-white">
@@ -188,16 +189,20 @@ export default async function GenericTermPage({
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="text-right">
-                                            <div className="text-emerald-400 font-medium">
-                                                R$ {group.price_stats.min?.toFixed(2)} — {group.price_stats.max?.toFixed(2)}
+
+                                        {minPrice !== null && (
+                                            <div className="text-right">
+                                                <div className="text-emerald-400 font-medium">
+                                                    R$ {minPrice.toFixed(2)} — {group.price_stats.max?.toFixed(2)}
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
 
                                     <div className="space-y-2">
                                         {group.variants.map((v, i) => {
-                                            const isCheapest = v.price === cheapest.price && v.available;
+                                            const isCheapest = minPrice !== null && v.price === minPrice && v.available;
+
                                             return (
                                                 <div
                                                     key={i}
