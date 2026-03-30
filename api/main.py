@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
+import unicodedata
 
 from fastapi import FastAPI, Query, HTTPException
 
@@ -278,14 +279,23 @@ def make_canonical_key(
     unit: str | None,
 ) -> str:
     """
-    Cross-store grouping v1.
-    Returns a readable canonical key in format: generic|brand|size|unit
-    None values become empty string. Brand is lowercased for matching.
-    Size is formatted to 2 decimal places when present.
-    This is intentionally simple and debuggable for the MVP.
+    Cross-store grouping v1 - improved normalization.
+    - Brand: remove accents, lowercase, strip
+    - Size: consistent .2f or empty
+    - Generic and unit: stripped
+    This should merge "Tio João" and "Tio Joao", "Máximo" etc.
     """
+
+    def normalize_brand(b: str | None) -> str:
+        if not b:
+            return ""
+        # Remove accents + lower + strip
+        text = unicodedata.normalize("NFKD", b)
+        text = "".join(c for c in text if not unicodedata.combining(c))
+        return text.strip().lower()
+
     g = (generic_name or "").strip()
-    b = (parsed_brand or "").strip().lower()
+    b = normalize_brand(parsed_brand)
     s = f"{package_size:.2f}" if package_size is not None else ""
     u = (unit or "").strip().lower()
 
@@ -324,21 +334,29 @@ async def list_generics(
 async def get_generics(
     term: str,
     store: str = Query(None, description="Filter by store (optional)"),
-    exclude_noise: bool = Query(True, description="Exclude noise items (default: true)"),
-    group: str = Query(None, description="Optional grouping: 'brand_size' | 'size_only' (default: flat list)"),
+    exclude_noise: bool = Query(
+        True, description="Exclude noise items (default: true)"
+    ),
+    group: str = Query(
+        None,
+        description="Grouping mode: 'brand_size' | 'size_only' | 'brand_only' (default: flat list)",
+    ),
 ):
     """
-    Clean generics v1 endpoint with cross-store grouping support.
-    Returns latest fresh price per product.
-    Now includes canonical_key. Optional ?group=brand_size or size_only.
+    Clean generics v1 + cross-store grouping.
+    Three modes:
+    - brand_size : group by brand + size + unit (default detailed view)
+    - size_only  : group by size + unit, with list of brands inside
+    - brand_only : group by brand only, with all sizes/variants inside
     """
     if not term or not term.strip():
         raise HTTPException(status_code=422, detail="Term cannot be empty")
 
-    if group and group not in ("brand_size", "size_only"):
+    valid_groups = ("brand_size", "size_only", "brand_only")
+    if group and group not in valid_groups:
         raise HTTPException(
             status_code=422,
-            detail="Invalid group value. Use 'brand_size', 'size_only', or omit for flat list."
+            detail=f"Invalid group. Use one of: {valid_groups} or omit for flat list.",
         )
 
     pool = await get_pool()
@@ -358,117 +376,150 @@ async def get_generics(
     where_clause = " AND ".join(where)
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(f"""
+        rows = await conn.fetch(
+            f"""
             SELECT 
-                p.name,
-                p.store,
-                p.parsed_brand,
-                p.package_size,
-                p.unit,
-                p.is_noise,
+                p.name, p.store, p.parsed_brand, p.package_size, p.unit,
+                p.is_noise, p.generic_name,
                 MAX(pp.price) as price,
-                bool_or(pp.available) as available,
-                p.generic_name
+                bool_or(pp.available) as available
             FROM products p
-            LEFT JOIN price_points pp 
-                ON p.id = pp.product_id 
-                AND pp.scrape_date >= $2
+            LEFT JOIN price_points pp ON p.id = pp.product_id AND pp.scrape_date >= $2
             WHERE {where_clause}
             GROUP BY p.id, p.name, p.store, p.parsed_brand, p.package_size, p.unit, p.is_noise, p.generic_name
-        """, *params, fresh_cutoff)
+        """,
+            *params,
+            fresh_cutoff,
+        )
 
-    # Build products with canonical_key
+    # Build flat products
     products = []
     for r in rows:
-        products.append({
-            "name": r["name"],
-            "store": r["store"],
-            "price": float(r["price"]) if r["price"] is not None else None,
-            "package_size": float(r["package_size"]) if r["package_size"] is not None else None,
-            "unit": r["unit"],
-            "parsed_brand": r["parsed_brand"],
-            "is_noise": r["is_noise"],
-            "available": bool(r["available"]) if r["available"] is not None else True,
-            "canonical_key": make_canonical_key(
-                r["generic_name"],
-                r["parsed_brand"],
-                r["package_size"],
-                r["unit"]
-            ),
-        })
-
-    # Sort exactly like history does
-    products.sort(
-        key=lambda x: (
-            not x["available"],
-            x["price"] is None,
-            x["price"] or 0,
+        products.append(
+            {
+                "name": r["name"],
+                "store": r["store"],
+                "price": float(r["price"]) if r["price"] is not None else None,
+                "package_size": float(r["package_size"])
+                if r["package_size"] is not None
+                else None,
+                "unit": r["unit"],
+                "parsed_brand": r["parsed_brand"],
+                "is_noise": r["is_noise"],
+                "available": bool(r["available"])
+                if r["available"] is not None
+                else True,
+                "canonical_key": make_canonical_key(
+                    r["generic_name"], r["parsed_brand"], r["package_size"], r["unit"]
+                ),
+            }
         )
+
+    products.sort(
+        key=lambda x: (not x["available"], x["price"] is None, x["price"] or 0)
     )
 
-    # Simple grouping for v1
-    if group:
-        from collections import defaultdict
-        groups: dict[str, dict] = defaultdict(lambda: {
+    if not group:
+        return {
+            "generic": term,
+            "count": len(products),
+            "products": products,
+            "_meta": {
+                "fresh_cutoff": fresh_cutoff.isoformat(),
+                "excluded_noise": exclude_noise,
+                "store_filter": store,
+            },
+        }
+
+    # === GROUPING ===
+    from collections import defaultdict
+
+    groups = defaultdict(
+        lambda: {
             "canonical_key": "",
             "generic": term,
             "brand": None,
             "package_size": None,
             "unit": None,
             "variants": [],
-            "price_stats": {"min": None, "max": None, "avg": None}
-        })
+            "price_stats": {"min": None, "max": None, "avg": None},
+            "brands": set(),
+        }
+    )
 
-        for p in products:
+    for p in products:
+        if group == "brand_size":
             key = p["canonical_key"]
-            if key not in groups:
-                brand = p.get("parsed_brand") if group == "brand_size" else None
-                size = p.get("package_size")
-                u = p.get("unit")
-                groups[key]["canonical_key"] = key
-                groups[key]["brand"] = brand
-                groups[key]["package_size"] = size
-                groups[key]["unit"] = u
+            brand_val = p.get("parsed_brand")
+            size_val = p.get("package_size")
+            unit_val = p.get("unit")
+        elif group == "size_only":
+            key = make_canonical_key(
+                p.get("generic_name"), None, p.get("package_size"), p.get("unit")
+            )
+            brand_val = None
+            size_val = p.get("package_size")
+            unit_val = p.get("unit")
+        else:  # brand_only
+            key = make_canonical_key(
+                p.get("generic_name"), p.get("parsed_brand"), None, None
+            )
+            brand_val = p.get("parsed_brand")
+            size_val = None
+            unit_val = None
 
-            groups[key]["variants"].append({
+        g = groups[key]
+        g["canonical_key"] = key
+        g["brand"] = brand_val if group == "brand_size" else None
+        g["package_size"] = size_val
+        g["unit"] = unit_val
+
+        g["variants"].append(
+            {
                 "store": p["store"],
                 "name": p["name"],
                 "price": p["price"],
                 "available": p["available"],
-            })
-
-        # Compute simple price stats per group
-        for g in groups.values():
-            prices = [v["price"] for v in g["variants"] if v["price"] is not None]
-            if prices:
-                g["price_stats"] = {
-                    "min": min(prices),
-                    "max": max(prices),
-                    "avg": sum(prices) / len(prices)
-                }
-
-        grouped_list = list(groups.values())
-
-        return {
-            "generic": term,
-            "group_mode": group,
-            "count": len(grouped_list),
-            "groups": grouped_list,
-            "_meta": {
-                "fresh_cutoff": fresh_cutoff.isoformat(),
-                "excluded_noise": exclude_noise,
-                "store_filter": store,
+                "parsed_brand": p.get("parsed_brand"),
+                "package_size": p.get("package_size"),
+                "unit": p.get("unit"),
             }
-        }
+        )
 
-    # Default: flat list (backward compatible)
+        if p.get("parsed_brand"):
+            g["brands"].add(p["parsed_brand"])
+
+    # Finalize groups
+    grouped_list = []
+    for g in groups.values():
+        prices = [
+            v["price"]
+            for v in g["variants"]
+            if v["price"] is not None and v["available"]
+        ]
+        if prices:
+            g["price_stats"] = {
+                "min": min(prices),
+                "max": max(prices),
+                "avg": round(sum(prices) / len(prices), 2),
+            }
+        else:
+            g["price_stats"] = {"min": None, "max": None, "avg": None}
+
+        if group in ("size_only", "brand_only"):
+            g["brand"] = sorted(list(g["brands"])) if g["brands"] else None
+
+        del g["brands"]
+        grouped_list.append(g)
+
     return {
         "generic": term,
-        "count": len(products),
-        "products": products,
+        "group_mode": group,
+        "count": len(grouped_list),
+        "groups": grouped_list,
         "_meta": {
             "fresh_cutoff": fresh_cutoff.isoformat(),
             "excluded_noise": exclude_noise,
             "store_filter": store,
-        }
+        },
     }
