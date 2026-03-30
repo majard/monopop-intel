@@ -1,14 +1,15 @@
+// web/hooks/useShoppingLists.ts
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface ShoppingListItem {
   id: string;
-  genericName: string;           // required - primary matching key
-  productId?: number;            // optional pinning to specific intel product
-  quantity: number;              // defaults to 1
-  preferredUnit?: string;        // 'g' | 'ml' | 'un' etc.
-  preferredStdSize?: number;     // atomic value (e.g. 1000 for 1kg)
+  genericName: string;
+  productId?: number;
+  quantity: number;
+  preferredUnit?: string;
+  preferredStdSize?: number;
   notes?: string;
 }
 
@@ -24,15 +25,20 @@ const STORAGE_KEY = 'mintel-shopping-lists';
 
 export function useShoppingLists() {
   const [lists, setLists] = useState<ShoppingList[]>([]);
+  const isInitialized = useRef(false);
+  const saveTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  // Load from localStorage on mount
+  // Load from localStorage - runs reliably on every mount
   useEffect(() => {
+    if (isInitialized.current) return;
+
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        setLists(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        setLists(parsed);
       } else {
-        // Create one default empty list on first visit
+        // Only create default list if truly empty
         const defaultList: ShoppingList = {
           id: `list-${Date.now()}`,
           name: 'Lista de Compras',
@@ -46,15 +52,31 @@ export function useShoppingLists() {
     } catch (e) {
       console.error('Failed to load shopping lists from localStorage', e);
     }
+
+    isInitialized.current = true;
   }, []);
 
-  // Persist to localStorage whenever lists change
+  // Save to localStorage with debounce to prevent race conditions during navigation
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(lists));
-    } catch (e) {
-      console.error('Failed to save shopping lists to localStorage', e);
+    if (!isInitialized.current || lists.length === 0) return;
+
+    if (saveTimeout.current) {
+      clearTimeout(saveTimeout.current);
     }
+
+    saveTimeout.current = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(lists));
+      } catch (e) {
+        console.error('Failed to save shopping lists to localStorage', e);
+      }
+    }, 50); // small debounce
+
+    return () => {
+      if (saveTimeout.current) {
+        clearTimeout(saveTimeout.current);
+      }
+    };
   }, [lists]);
 
   const createList = useCallback((name: string = 'Nova Lista') => {
