@@ -38,8 +38,8 @@ interface Group {
 interface GenericResponse {
     generic: string;
     count: number;
-    products?: GenericProduct[];        // flat mode
-    groups?: Group[];                   // grouped mode
+    products?: GenericProduct[];
+    groups?: Group[];
     group_mode?: string | null;
     _meta: any;
 }
@@ -50,12 +50,12 @@ const STORE_LABELS: Record<string, string> = {
     hortifruti: "Hortifruti",
 };
 
-const GROUP_LABELS: Record<string, string> = {
-    "": "Lista simples",
-    "brand_size": "Por marca + tamanho",
-    "size_only": "Por tamanho (marcas dentro)",
-    "brand_only": "Por marca (todos tamanhos)",
-};
+const GROUP_OPTIONS = [
+    { value: "", label: "Lista simples" },
+    { value: "brand_size", label: "Por marca + embalagem" },
+    { value: "size_only", label: "Por embalagem" },
+    { value: "brand_only", label: "Por marca" },
+];
 
 function formatPrice(p: number | null): string {
     if (p === null || p <= 0) return "—";
@@ -106,7 +106,7 @@ export default async function GenericTermPage({
 
     if (!data) notFound();
 
-    const isGrouped = !!data.group_mode;
+    const isGrouped = !!data.group_mode && data.groups;
 
     return (
         <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono">
@@ -126,19 +126,19 @@ export default async function GenericTermPage({
                     </p>
                 </div>
 
-                {/* Grouping mode selector */}
-                <div className="flex flex-wrap gap-2 mb-8">
-                    {Object.entries(GROUP_LABELS).map(([mode, label]) => (
+                {/* Grouping selector - clean tabs */}
+                <div className="flex flex-wrap gap-1 mb-8 border-b border-zinc-800 pb-1">
+                    {GROUP_OPTIONS.map(({ value, label }) => (
                         <Link
-                            key={mode}
+                            key={value}
                             href={`?${new URLSearchParams({
                                 ...(sp.store && { store: sp.store }),
                                 exclude_noise: String(excludeNoise),
-                                ...(mode && { group: mode }),
+                                ...(value && { group: value }),
                             }).toString()}`}
-                            className={`px-4 py-2 text-sm rounded border transition-all ${currentGroup === mode
-                                    ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
-                                    : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                            className={`px-5 py-2 text-sm rounded-t-lg transition-all font-medium ${currentGroup === value
+                                    ? "bg-zinc-900 border border-b-0 border-zinc-700 text-white"
+                                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-950"
                                 }`}
                         >
                             {label}
@@ -173,59 +173,76 @@ export default async function GenericTermPage({
                         type="submit"
                         className="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 px-4 py-2 rounded text-sm transition-colors"
                     >
-                        aplicar filtros
+                        aplicar
                     </button>
                 </form>
 
                 {isGrouped && data.groups ? (
                     /* GROUPED VIEW */
-                    <div className="flex flex-col gap-6">
-                        {data.groups.map((group, idx) => (
-                            <div key={idx} className="bg-zinc-900 border border-zinc-800 rounded p-5">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div>
-                                        <div className="font-medium text-white">
-                                            {Array.isArray(group.brand)
-                                                ? group.brand.join(", ")
-                                                : group.brand || "Sem marca"}
-                                        </div>
-                                        {(group.package_size || group.unit) && (
-                                            <div className="text-sm text-zinc-500">
-                                                {group.package_size}{group.unit}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-emerald-400 text-sm">
-                                            R$ {group.price_stats.min?.toFixed(2)} — {group.price_stats.max?.toFixed(2)}
-                                        </div>
-                                        <div className="text-xs text-zinc-500">
-                                            média R$ {group.price_stats.avg?.toFixed(2)}
-                                        </div>
-                                    </div>
-                                </div>
+                    <div className="space-y-6">
+                        {data.groups.map((group, idx) => {
+                            const cheapestVariant = group.variants.reduce((prev, curr) =>
+                                (curr.price && curr.available && (!prev.price || curr.price < prev.price))
+                                    ? curr : prev
+                                , group.variants[0]);
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    {group.variants.map((v, i) => (
-                                        <div key={i} className="flex justify-between text-sm border-l-2 border-zinc-700 pl-3">
-                                            <div>
-                                                <span className="text-zinc-400">
-                                                    {STORE_LABELS[v.store] ?? v.store}
-                                                </span>
-                                                {" • "}
-                                                <span className="text-zinc-100">{v.name}</span>
+                            return (
+                                <div key={idx} className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <div className="font-semibold text-lg text-white">
+                                                {Array.isArray(group.brand)
+                                                    ? group.brand.join(" • ")
+                                                    : group.brand || "Sem marca específica"}
                                             </div>
-                                            <div className="text-emerald-400 font-medium shrink-0">
-                                                {formatPrice(v.price)}
+                                            {(group.package_size && group.unit) && (
+                                                <div className="text-sm text-emerald-400 mt-0.5">
+                                                    {group.package_size}{group.unit}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="text-right">
+                                            <div className="text-emerald-400 font-medium">
+                                                R$ {group.price_stats.min?.toFixed(2)} — {group.price_stats.max?.toFixed(2)}
+                                            </div>
+                                            <div className="text-xs text-zinc-500">
+                                                média R$ {group.price_stats.avg?.toFixed(2)}
                                             </div>
                                         </div>
-                                    ))}
+                                    </div>
+
+                                    <div className="grid gap-3">
+                                        {group.variants.map((v, i) => {
+                                            const isCheapest = v === cheapestVariant && v.price && v.available;
+                                            return (
+                                                <div
+                                                    key={i}
+                                                    className={`flex justify-between items-center px-4 py-3 rounded border ${isCheapest
+                                                            ? "border-emerald-500 bg-emerald-500/5"
+                                                            : "border-zinc-800"
+                                                        }`}
+                                                >
+                                                    <div className="flex-1">
+                                                        <span className="text-zinc-400 text-sm">
+                                                            {STORE_LABELS[v.store] ?? v.store}
+                                                        </span>
+                                                        {" • "}
+                                                        <span className="text-zinc-100">{v.name}</span>
+                                                    </div>
+                                                    <div className={`font-medium ${isCheapest ? "text-emerald-400" : "text-zinc-100"}`}>
+                                                        {formatPrice(v.price)}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 ) : data.products ? (
-                    /* FLAT VIEW - original style */
+                    /* FLAT VIEW */
                     <div className="flex flex-col gap-3">
                         {data.products.map((p, i) => (
                             <div
