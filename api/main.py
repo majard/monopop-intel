@@ -324,15 +324,22 @@ async def list_generics(
 async def get_generics(
     term: str,
     store: str = Query(None, description="Filter by store (optional)"),
-    exclude_noise: bool = Query(True, description="Exclude noise items (default: true)")
+    exclude_noise: bool = Query(True, description="Exclude noise items (default: true)"),
+    group: str = Query(None, description="Optional grouping: 'brand_size' | 'size_only' (default: flat list)"),
 ):
     """
     Clean generics v1 endpoint with cross-store grouping support.
     Returns latest fresh price per product.
-    Now includes canonical_key for cross-store comparison.
+    Now includes canonical_key. Optional ?group=brand_size or size_only.
     """
     if not term or not term.strip():
         raise HTTPException(status_code=422, detail="Term cannot be empty")
+
+    if group and group not in ("brand_size", "size_only"):
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid group value. Use 'brand_size', 'size_only', or omit for flat list."
+        )
 
     pool = await get_pool()
     fresh_cutoff = date.today() - timedelta(days=7)
@@ -360,16 +367,17 @@ async def get_generics(
                 p.unit,
                 p.is_noise,
                 MAX(pp.price) as price,
-                bool_or(pp.available) as available
+                bool_or(pp.available) as available,
+                p.generic_name
             FROM products p
             LEFT JOIN price_points pp 
                 ON p.id = pp.product_id 
                 AND pp.scrape_date >= $2
             WHERE {where_clause}
-            GROUP BY p.id, p.name, p.store, p.parsed_brand, p.package_size, p.unit, p.is_noise
+            GROUP BY p.id, p.name, p.store, p.parsed_brand, p.package_size, p.unit, p.is_noise, p.generic_name
         """, *params, fresh_cutoff)
 
-    # Build products list
+    # Build products with canonical_key
     products = []
     for r in rows:
         products.append({
@@ -381,9 +389,8 @@ async def get_generics(
             "parsed_brand": r["parsed_brand"],
             "is_noise": r["is_noise"],
             "available": bool(r["available"]) if r["available"] is not None else True,
-            # Cross-store grouping v1 - added field (backward compatible)
             "canonical_key": make_canonical_key(
-                r["generic_name"] if "generic_name" in r else term,  # fallback
+                r["generic_name"],
                 r["parsed_brand"],
                 r["package_size"],
                 r["unit"]
@@ -393,12 +400,68 @@ async def get_generics(
     # Sort exactly like history does
     products.sort(
         key=lambda x: (
-            not x["available"],                    # available first
-            x["price"] is None,                    # has price before no price
-            x["price"] or 0,                       # then cheapest first
+            not x["available"],
+            x["price"] is None,
+            x["price"] or 0,
         )
     )
 
+    # Simple grouping for v1
+    if group:
+        from collections import defaultdict
+        groups: dict[str, dict] = defaultdict(lambda: {
+            "canonical_key": "",
+            "generic": term,
+            "brand": None,
+            "package_size": None,
+            "unit": None,
+            "variants": [],
+            "price_stats": {"min": None, "max": None, "avg": None}
+        })
+
+        for p in products:
+            key = p["canonical_key"]
+            if key not in groups:
+                brand = p.get("parsed_brand") if group == "brand_size" else None
+                size = p.get("package_size")
+                u = p.get("unit")
+                groups[key]["canonical_key"] = key
+                groups[key]["brand"] = brand
+                groups[key]["package_size"] = size
+                groups[key]["unit"] = u
+
+            groups[key]["variants"].append({
+                "store": p["store"],
+                "name": p["name"],
+                "price": p["price"],
+                "available": p["available"],
+            })
+
+        # Compute simple price stats per group
+        for g in groups.values():
+            prices = [v["price"] for v in g["variants"] if v["price"] is not None]
+            if prices:
+                g["price_stats"] = {
+                    "min": min(prices),
+                    "max": max(prices),
+                    "avg": sum(prices) / len(prices)
+                }
+
+        grouped_list = list(groups.values())
+
+        return {
+            "generic": term,
+            "group_mode": group,
+            "count": len(grouped_list),
+            "groups": grouped_list,
+            "_meta": {
+                "fresh_cutoff": fresh_cutoff.isoformat(),
+                "excluded_noise": exclude_noise,
+                "store_filter": store,
+            }
+        }
+
+    # Default: flat list (backward compatible)
     return {
         "generic": term,
         "count": len(products),
