@@ -5,6 +5,7 @@ import FilterSelect from "@/components/ui/FilterSelect";
 const API = process.env.NEXT_PUBLIC_API_URL;
 
 interface GenericProduct {
+    product_id: number;                    // ← Added for drill-down links
     name: string;
     store: string;
     price: number | null;
@@ -25,6 +26,7 @@ interface Group {
     unit: string | null;
     normalized_size: string | null;
     variants: Array<{
+        product_id: number;                // ← Added for linking
         store: string;
         name: string;
         price: number | null;
@@ -166,8 +168,8 @@ export default async function GenericTermPage({
                                 sort_by: currentSort,
                             }).toString()}`}
                             className={`px-5 py-2 text-sm rounded-t-lg transition-all whitespace-nowrap font-medium ${currentGroup === value
-                                ? "bg-zinc-900 border border-b-0 border-zinc-700 text-white"
-                                : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-950"
+                                    ? "bg-zinc-900 border border-b-0 border-zinc-700 text-white"
+                                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-950"
                                 }`}
                         >
                             {label}
@@ -224,16 +226,16 @@ export default async function GenericTermPage({
                                     </div>
 
                                     <div className="space-y-2">
-                                        {group.variants.map((v, i) => {
+                                        {group.variants.map((v) => {
                                             const isCheapestInGroup = minPrice !== null && v.price === minPrice && v.available;
                                             const isGlobalBestPerUnit = globalBestPerUnit &&
                                                 globalBestPerUnit.groupIndex === gIdx &&
-                                                globalBestPerUnit.variantIndex === i;
+                                                globalBestPerUnit.variantIndex === v.product_id;
 
                                             return (
                                                 <Link
-                                                    key={i}
-                                                    href={`/generics/${encodeURIComponent(decoded)}/${v.product_id || ''}`}
+                                                    key={v.product_id}
+                                                    href={`/generics/${encodeURIComponent(decoded)}/${v.product_id}`}
                                                     className="block group"
                                                 >
                                                     <div className={`relative flex justify-between items-center px-4 py-3 rounded border ${isCheapestInGroup ? "border-emerald-500/40" : "border-zinc-800"} hover:border-emerald-500 transition-colors`}>
@@ -284,15 +286,15 @@ export default async function GenericTermPage({
                     </div>
                 ) : data.products ? (
                     <div className="flex flex-col gap-3">
-                        {data.products.map((p, i) => {
+                        {data.products.map((p) => {
                             const isGlobalBestPerUnit = p.price_per_unit !== null &&
                                 globalBestPerUnit !== null &&
                                 Math.abs(p.price_per_unit - globalBestPerUnit.value) < 0.0001;
 
                             return (
                                 <Link
-                                    key={i}
-                                    href={`/generics/${encodeURIComponent(decoded)}/${p.product_id || ''}`}
+                                    key={p.product_id}
+                                    href={`/generics/${encodeURIComponent(decoded)}/${p.product_id}`}
                                     className="group block bg-zinc-900 border border-zinc-800 hover:border-emerald-500 rounded-lg px-5 py-5 transition-colors"
                                 >
                                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative">
@@ -325,7 +327,7 @@ export default async function GenericTermPage({
                                             </div>
                                         </div>
 
-                                        <div className="text-right">
+                                        <div className="text-right shrink-0">
                                             <p className="text-emerald-400 font-bold text-[20px]">
                                                 {formatPrice(p.price)}
                                             </p>
