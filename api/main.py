@@ -283,13 +283,11 @@ def make_canonical_key(
     - Brand: remove accents, lowercase, strip
     - Size: consistent .2f or empty
     - Generic and unit: stripped
-    This should merge "Tio João" and "Tio Joao", "Máximo" etc.
     """
 
     def normalize_brand(b: str | None) -> str:
         if not b:
             return ""
-        # Remove accents + lower + strip
         text = unicodedata.normalize("NFKD", b)
         text = "".join(c for c in text if not unicodedata.combining(c))
         return text.strip().lower()
@@ -319,6 +317,7 @@ async def list_generics(
             WHERE generic_name IS NOT NULL
         """
         params: list = []
+
         if q and q.strip():
             query += " AND generic_name ILIKE $1"
             params.append(f"%{q.strip()}%")
@@ -327,7 +326,13 @@ async def list_generics(
 
         rows = await conn.fetch(query, *params)
 
-    return [dict(r) for r in rows]
+    return {
+        "generics": [dict(r) for r in rows],
+        "_meta": {
+            "filter": q.strip() if q and q.strip() else None,
+            "total": len(rows),
+        },
+    }
 
 
 @app.get("/generics/{term}")
@@ -345,7 +350,7 @@ async def get_generics(
     """
     Clean generics v1 + cross-store grouping.
     Three modes:
-    - brand_size : group by brand + size + unit (default detailed view)
+    - brand_size : group by brand + size + unit
     - size_only  : group by size + unit, with list of brands inside
     - brand_only : group by brand only, with all sizes/variants inside
     """
@@ -362,37 +367,49 @@ async def get_generics(
     pool = await get_pool()
     fresh_cutoff = date.today() - timedelta(days=7)
 
+    # Build WHERE clause and params dynamically (consistent with history endpoints)
     where = ["p.generic_name = $1"]
     params: list = [term]
-    i = 2
 
     if exclude_noise:
         where.append("p.is_noise = false")
+
     if store:
-        where.append(f"p.store = ${i}")
+        where.append(f"p.store = ${len(params) + 1}")
         params.append(store)
-        i += 1
 
     where_clause = " AND ".join(where)
+
+    # fresh_cutoff is always the last parameter
+    params.append(fresh_cutoff)
+    fresh_pos = len(params)
 
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             f"""
             SELECT 
-                p.name, p.store, p.parsed_brand, p.package_size, p.unit,
-                p.is_noise, p.generic_name,
+                p.name, 
+                p.store, 
+                p.parsed_brand, 
+                p.package_size, 
+                p.unit,
+                p.is_noise, 
+                p.generic_name,
                 MAX(pp.price) as price,
                 bool_or(pp.available) as available
             FROM products p
-            LEFT JOIN price_points pp ON p.id = pp.product_id AND pp.scrape_date >= $2
+            LEFT JOIN price_points pp 
+                ON p.id = pp.product_id 
+                AND pp.scrape_date >= ${fresh_pos}
             WHERE {where_clause}
-            GROUP BY p.id, p.name, p.store, p.parsed_brand, p.package_size, p.unit, p.is_noise, p.generic_name
-        """,
+            GROUP BY 
+                p.id, p.name, p.store, p.parsed_brand, 
+                p.package_size, p.unit, p.is_noise, p.generic_name
+            """,
             *params,
-            fresh_cutoff,
         )
 
-    # Build flat products
+    # Build flat products list
     products = []
     for r in rows:
         products.append(
@@ -431,10 +448,10 @@ async def get_generics(
             },
         }
 
-    # === GROUPING ===
+    # === GROUPING LOGIC ===
     from collections import defaultdict
 
-    groups = defaultdict(
+    groups: defaultdict = defaultdict(
         lambda: {
             "canonical_key": "",
             "generic": term,
