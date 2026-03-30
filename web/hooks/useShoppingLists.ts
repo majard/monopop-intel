@@ -1,4 +1,5 @@
-// web/hooks/useShoppingLists.ts
+'use client';
+
 import { useState, useEffect, useCallback } from 'react';
 
 export interface ShoppingListItem {
@@ -93,10 +94,10 @@ export function useShoppingLists() {
       prev.map(list =>
         list.id === listId
           ? {
-              ...list,
-              items: [...list.items, newItem],
-              updatedAt: new Date().toISOString(),
-            }
+            ...list,
+            items: [...list.items, newItem],
+            updatedAt: new Date().toISOString(),
+          }
           : list
       )
     );
@@ -109,12 +110,12 @@ export function useShoppingLists() {
       prev.map(list =>
         list.id === listId
           ? {
-              ...list,
-              items: list.items.map(item =>
-                item.id === itemId ? { ...item, ...updates } : item
-              ),
-              updatedAt: new Date().toISOString(),
-            }
+            ...list,
+            items: list.items.map(item =>
+              item.id === itemId ? { ...item, ...updates } : item
+            ),
+            updatedAt: new Date().toISOString(),
+          }
           : list
       )
     );
@@ -125,10 +126,10 @@ export function useShoppingLists() {
       prev.map(list =>
         list.id === listId
           ? {
-              ...list,
-              items: list.items.filter(item => item.id !== itemId),
-              updatedAt: new Date().toISOString(),
-            }
+            ...list,
+            items: list.items.filter(item => item.id !== itemId),
+            updatedAt: new Date().toISOString(),
+          }
           : list
       )
     );
