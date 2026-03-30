@@ -352,6 +352,7 @@ async def get_generics(
     """
     Clean generics v1 + cross-store grouping with price-per-unit normalization.
     Supports both grouped and flat modes with consistent sorting.
+    Now includes url, ean, category, brand and vtex_product_id for drill-down pages.
     """
     if not term or not term.strip():
         raise HTTPException(status_code=422, detail="Term cannot be empty")
@@ -387,68 +388,82 @@ async def get_generics(
         rows = await conn.fetch(
             f"""
             SELECT 
-                p.name, p.store, p.parsed_brand, p.package_size, p.unit,
-                p.is_noise, p.generic_name,
+                p.id,
+                p.vtex_product_id,
+                p.name,
+                p.store,
+                p.brand,
+                p.ean,
+                p.category,
+                p.url,
+                p.parsed_brand,
+                p.package_size,
+                p.unit,
+                p.is_noise,
+                p.generic_name,
                 MAX(pp.price) as price,
                 bool_or(pp.available) as available
             FROM products p
             LEFT JOIN price_points pp 
                 ON p.id = pp.product_id AND pp.scrape_date >= ${fresh_pos}
             WHERE {where_clause}
-            GROUP BY p.id, p.name, p.store, p.parsed_brand, p.package_size, p.unit, p.is_noise, p.generic_name
+            GROUP BY 
+                p.id, p.vtex_product_id, p.name, p.store, p.brand, p.ean, 
+                p.category, p.url, p.parsed_brand, p.package_size, p.unit, 
+                p.is_noise, p.generic_name
             """,
             *params,
         )
 
-        # Build enriched products with normalized values
+    # Build enriched products
     products = []
     for r in rows:
         price = float(r["price"]) if r["price"] is not None else None
         size = float(r["package_size"]) if r["package_size"] is not None else None
         unit = r["unit"]
 
-        price_per_unit = None  # atomic base: R$/g or R$/ml (for sorting)
-        normalized_size = None  # display size
-        display_per_unit = None  # friendly display string
+        price_per_unit = None
+        normalized_size = None
+        display_per_unit = None
 
         if price is not None and size is not None and size > 0 and unit:
             if unit == "g":
                 price_per_g = price / size
-                price_per_unit = price_per_g  # atomic = R$/g
-
+                price_per_unit = price_per_g
                 if size >= 1000:
                     normalized_size = f"{size / 1000:.1f} kg".replace(".0", "")
                     display_per_unit = f"R$ {price_per_g * 1000:.2f}/kg"
                 else:
-                    # For smaller packs, still show per kg for better comparison
                     normalized_size = f"{size:.0f} g"
                     display_per_unit = f"R$ {price_per_g * 1000:.2f}/kg"
-
             elif unit == "ml":
                 price_per_ml = price / size
                 price_per_unit = price_per_ml
-
                 if size >= 1000:
                     normalized_size = f"{size / 1000:.1f} L".replace(".0", "")
                     display_per_unit = f"R$ {price_per_ml * 1000:.2f}/L"
                 else:
                     normalized_size = f"{size:.0f} ml"
                     display_per_unit = f"R$ {price_per_ml * 1000:.2f}/L"
-
             else:
-                # fallback (un, etc.)
                 normalized_size = f"{size}{unit}"
                 price_per_unit = price / size
                 display_per_unit = f"R$ {price_per_unit:.2f}/{unit}"
 
         products.append(
             {
+                "product_id": r["id"],
+                "vtex_product_id": r["vtex_product_id"],
                 "name": r["name"],
                 "store": r["store"],
+                "brand": r["brand"],
+                "ean": r["ean"],
+                "category": r["category"],
+                "url": r["url"],
+                "parsed_brand": r["parsed_brand"],
                 "price": price,
                 "package_size": size,
                 "unit": unit,
-                "parsed_brand": r["parsed_brand"],
                 "available": bool(r["available"])
                 if r["available"] is not None
                 else True,
@@ -540,8 +555,15 @@ async def get_generics(
 
         g["variants"].append(
             {
-                "store": p["store"],
+                "product_id": p["product_id"],
+                "vtex_product_id": p.get("vtex_product_id"),
                 "name": p["name"],
+                "store": p["store"],
+                "brand": p.get("brand"),
+                "ean": p.get("ean"),
+                "category": p.get("category"),
+                "url": p.get("url"),
+                "parsed_brand": p.get("parsed_brand"),
                 "price": p["price"],
                 "available": p["available"],
                 "price_per_unit": p["price_per_unit"],
