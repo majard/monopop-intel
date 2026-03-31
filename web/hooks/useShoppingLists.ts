@@ -10,6 +10,7 @@ export interface ShoppingListItem {
   quantity: number;
   preferredUnit?: string;
   preferredStdSize?: number;
+  pinnedPrice?: number;        // snapshot of the price at the moment of pinning
   notes?: string;
 }
 
@@ -26,9 +27,8 @@ const STORAGE_KEY = 'mintel-shopping-lists';
 export function useShoppingLists() {
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const isInitialized = useRef(false);
-  const saveTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  // Load from localStorage - runs reliably on every mount
+  // Load from localStorage
   useEffect(() => {
     if (isInitialized.current) return;
 
@@ -38,7 +38,6 @@ export function useShoppingLists() {
         const parsed = JSON.parse(saved);
         setLists(parsed);
       } else {
-        // Only create default list if truly empty
         const defaultList: ShoppingList = {
           id: `list-${Date.now()}`,
           name: 'Lista de Compras',
@@ -56,27 +55,15 @@ export function useShoppingLists() {
     isInitialized.current = true;
   }, []);
 
-  // Save to localStorage with debounce to prevent race conditions during navigation
+  // Save to localStorage immediately on any change
   useEffect(() => {
     if (!isInitialized.current || lists.length === 0) return;
 
-    if (saveTimeout.current) {
-      clearTimeout(saveTimeout.current);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(lists));
+    } catch (e) {
+      console.error('Failed to save shopping lists to localStorage', e);
     }
-
-    saveTimeout.current = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(lists));
-      } catch (e) {
-        console.error('Failed to save shopping lists to localStorage', e);
-      }
-    }, 50); // small debounce
-
-    return () => {
-      if (saveTimeout.current) {
-        clearTimeout(saveTimeout.current);
-      }
-    };
   }, [lists]);
 
   const createList = useCallback((name: string = 'Nova Lista') => {
@@ -107,7 +94,7 @@ export function useShoppingLists() {
 
   const addItem = useCallback((listId: string, item: Omit<ShoppingListItem, 'id'>) => {
     const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 1000000); // 6-digit random suffix
+    const random = Math.floor(Math.random() * 1000000);
 
     const newItem: ShoppingListItem = {
       ...item,
@@ -128,6 +115,49 @@ export function useShoppingLists() {
     );
 
     return newItem.id;
+  }, []);
+
+  const pinVariantToItem = useCallback((
+    listId: string,
+    itemId: string,
+    productId: number,
+    preferredUnit?: string,
+    preferredStdSize?: number,
+    pinnedPrice?: number
+  ) => {
+    setLists(prev =>
+      prev.map(list =>
+        list.id === listId
+          ? {
+            ...list,
+            items: list.items.map(item =>
+              item.id === itemId
+                ? { ...item, productId, preferredUnit, preferredStdSize, pinnedPrice }
+                : item
+            ),
+            updatedAt: new Date().toISOString(),
+          }
+          : list
+      )
+    );
+  }, []);
+
+  const unpinItem = useCallback((listId: string, itemId: string) => {
+    setLists(prev =>
+      prev.map(list =>
+        list.id === listId
+          ? {
+            ...list,
+            items: list.items.map(item =>
+              item.id === itemId
+                ? { ...item, productId: undefined, pinnedPrice: undefined }
+                : item
+            ),
+            updatedAt: new Date().toISOString(),
+          }
+          : list
+      )
+    );
   }, []);
 
   const updateItem = useCallback((listId: string, itemId: string, updates: Partial<ShoppingListItem>) => {
@@ -152,7 +182,7 @@ export function useShoppingLists() {
         list.id === listId
           ? {
             ...list,
-            items: list.items.filter(item => item.id !== itemId),   // strict !== 
+            items: list.items.filter(item => item.id !== itemId),
             updatedAt: new Date().toISOString(),
           }
           : list
@@ -176,7 +206,10 @@ export function useShoppingLists() {
     addItem,
     updateItem,
     removeItem,
+    pinVariantToItem,
+    unpinItem,
     getListById,
     getActiveList,
+    isInitialized
   };
 }

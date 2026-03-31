@@ -39,6 +39,8 @@ interface ProductDetailPanelProps {
     currentStore: string;
     currentGroup: string;
     currentSort: string;
+    onPinVariant: (productId: number, unit?: string, stdSize?: number, price?: number) => void;
+    pinnedProductId?: number;
 }
 
 export default function ProductDetailPanel({
@@ -50,6 +52,8 @@ export default function ProductDetailPanel({
     currentStore,
     currentGroup,
     currentSort,
+    onPinVariant,
+    pinnedProductId,
 }: ProductDetailPanelProps) {
     if (!data) {
         return <div className="p-8 text-center text-zinc-500">Carregando detalhes do produto...</div>;
@@ -61,7 +65,6 @@ export default function ProductDetailPanel({
         ? data.groups?.flatMap((g) => g.variants) || []
         : data.products || [];
 
-    // Global best price per unit (used for badges)
     const availableWithUnit = allProducts.filter((p) => p.price_per_unit !== null && p.available);
     const minPricePerUnit =
         availableWithUnit.length > 0 ? Math.min(...availableWithUnit.map((p) => p.price_per_unit!)) : null;
@@ -91,13 +94,13 @@ export default function ProductDetailPanel({
 
             {/* Content */}
             <div className="flex-1 overflow-auto p-6">
-                {/* Grouping tabs – FIXED: no manual encodeURIComponent */}
+                {/* Grouping tabs */}
                 <div className="flex flex-wrap gap-1 mb-6 border-b border-zinc-800 pb-1 overflow-x-auto">
                     {GROUP_OPTIONS.map(({ value, label }) => (
                         <Link
                             key={value}
                             href={`?${new URLSearchParams({
-                                generic: genericName, // raw string – URLSearchParams encodes once
+                                generic: genericName,
                                 ...(productId && { productId: productId.toString() }),
                                 ...(currentStore && { store: currentStore }),
                                 group: value,
@@ -128,7 +131,7 @@ export default function ProductDetailPanel({
                     <FilterSelect name="sort_by" options={SORT_OPTIONS} defaultValue={currentSort} />
                 </div>
 
-                {/* Products / Groups (unchanged) */}
+                {/* Products / Groups */}
                 {isGrouped && data.groups ? (
                     <div className="space-y-6">
                         {data.groups.map((group: Group) => {
@@ -154,6 +157,7 @@ export default function ProductDetailPanel({
                                         {group.variants.map((v: GenericProduct) => {
                                             const isCheapestInGroup = minPrice !== null && v.price === minPrice && v.available;
                                             const isBestPerUnit = isGlobalBestPerUnit(v);
+                                            const isCurrentlyPinned = v.product_id === pinnedProductId;
 
                                             return (
                                                 <div
@@ -176,7 +180,7 @@ export default function ProductDetailPanel({
                                                         </div>
                                                     )}
 
-                                                    <div className="text-sm pr-8">
+                                                    <div className="text-sm pr-8 flex-1">
                                                         <span className="text-zinc-400">{STORE_LABELS[v.store] ?? v.store}</span>
                                                         {' • '}
                                                         <span className="text-zinc-100">{v.name}</span>
@@ -185,13 +189,30 @@ export default function ProductDetailPanel({
                                                         )}
                                                     </div>
 
-                                                    <div className="text-right shrink-0">
+                                                    <div className="text-right shrink-0 flex items-center gap-3">
                                                         <div className={`font-medium ${isCheapestInGroup ? 'text-emerald-400' : ''}`}>
                                                             {formatPrice(v.price)}
                                                         </div>
                                                         {v.display_per_unit && (
                                                             <div className="text-xs text-zinc-500">{v.display_per_unit}</div>
                                                         )}
+
+                                                        <button
+                                                            onClick={() =>
+                                                                onPinVariant(
+                                                                    v.product_id,
+                                                                    v.unit || undefined,        // convert null to undefined
+                                                                    v.package_size || undefined,       
+                                                                    v.price || undefined        
+                                                                )
+                                                            }
+                                                            className={`text-xs px-3 py-1 rounded border transition-colors ${isCurrentlyPinned
+                                                                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
+                                                                    : 'hover:bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'
+                                                                }`}
+                                                        >
+                                                            {isCurrentlyPinned ? 'Fixado' : 'Fixar'}
+                                                        </button>
                                                     </div>
                                                 </div>
                                             );
@@ -205,15 +226,16 @@ export default function ProductDetailPanel({
                     <div className="flex flex-col gap-3">
                         {allProducts.map((p: GenericProduct) => {
                             const isBestPerUnit = isGlobalBestPerUnit(p);
+                            const isCurrentlyPinned = p.product_id === pinnedProductId;
 
                             return (
                                 <div
                                     key={p.product_id}
-                                    className="group block bg-zinc-900 border border-zinc-800 hover:border-emerald-500 rounded-lg px-5 py-5 transition-colors"
+                                    className="group block bg-zinc-900 border border-zinc-800 hover:border-emerald-500 rounded-lg px-5 py-5 transition-colors relative"
                                 >
-                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                                         {isBestPerUnit && (
-                                            <div className="absolute -top-7 right-4 bg-zinc-950 px-1">
+                                            <div className="absolute -top-2 right-4 bg-zinc-950 px-1">
                                                 <div className="bg-amber-500 text-zinc-950 text-[10px] font-bold px-2.5 py-0.5 rounded">
                                                     melhor por unidade
                                                 </div>
@@ -239,11 +261,30 @@ export default function ProductDetailPanel({
                                             </div>
                                         </div>
 
-                                        <div className="text-right shrink-0">
-                                            <p className="text-emerald-400 font-bold text-[20px]">{formatPrice(p.price)}</p>
-                                            {p.display_per_unit && (
-                                                <p className="text-xs text-zinc-500">{p.display_per_unit}</p>
-                                            )}
+                                        <div className="text-right shrink-0 flex items-center gap-3">
+                                            <div>
+                                                <p className="text-emerald-400 font-bold text-[20px]">{formatPrice(p.price)}</p>
+                                                {p.display_per_unit && (
+                                                    <p className="text-xs text-zinc-500">{p.display_per_unit}</p>
+                                                )}
+                                            </div>
+
+                                            <button
+                                                onClick={() =>
+                                                    onPinVariant(
+                                                        p.product_id,
+                                                        p.unit || undefined,     // convert null → undefined
+                                                        p.package_size || undefined,
+                                                        p.price || undefined        
+                                                    )
+                                                }
+                                                className={`text-xs px-3 py-1 rounded border transition-colors ${isCurrentlyPinned
+                                                        ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
+                                                        : 'hover:bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'
+                                                    }`}
+                                            >
+                                                {isCurrentlyPinned ? 'Fixado' : 'Fixar'}
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
