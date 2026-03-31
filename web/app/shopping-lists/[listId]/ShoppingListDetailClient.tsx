@@ -117,9 +117,9 @@ export default function ShoppingListDetailClient({
 
     return (
         <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-6">
-            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 h-[calc(100vh-3rem)]">
+            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 h-[calc(100vh-3rem)] overflow-hidden">
                 {/* Left: Shopping List (always visible) */}
-                <div className="lg:w-5/12 flex flex-col">
+                <div className="flex-1 flex flex-col min-h-0">
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-4">
                             <button
@@ -210,7 +210,7 @@ export default function ShoppingListDetailClient({
 
                 {/* Right: Product Detail Panel (only when open) */}
                 {isPanelOpen && data && (
-                    <div className="lg:w-7/12 lg:border-l lg:border-zinc-800 lg:pl-6 flex flex-col h-full">
+                    <div className="flex-1 lg:w-7/12 lg:border-l lg:border-zinc-800 lg:pl-6 flex flex-col min-h-0">
                         <ProductDetailPanel
                             genericName={generic}
                             productId={productId}

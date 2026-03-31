@@ -213,7 +213,7 @@ export default function ProductDetailPanel({
                                 >
                                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative">
                                         {isBestPerUnit && (
-                                            <div className="absolute -top-2 right-4 bg-zinc-950 px-1">
+                                            <div className="absolute -top-7 right-4 bg-zinc-950 px-1">
                                                 <div className="bg-amber-500 text-zinc-950 text-[10px] font-bold px-2.5 py-0.5 rounded">
                                                     melhor por unidade
                                                 </div>
