@@ -106,9 +106,12 @@ export function useShoppingLists() {
   }, []);
 
   const addItem = useCallback((listId: string, item: Omit<ShoppingListItem, 'id'>) => {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000000); // 6-digit random suffix
+
     const newItem: ShoppingListItem = {
       ...item,
-      id: `item-${Date.now()}`,
+      id: `item-${timestamp}-${random}`,
       quantity: item.quantity || 1,
     };
 
@@ -149,7 +152,7 @@ export function useShoppingLists() {
         list.id === listId
           ? {
             ...list,
-            items: list.items.filter(item => item.id !== itemId),
+            items: list.items.filter(item => item.id !== itemId),   // strict !== 
             updatedAt: new Date().toISOString(),
           }
           : list
