@@ -7,6 +7,7 @@ import ProductDetailPanel from '../../../components/ProductDetailPanel';
 import ShoppingListPasteModal from '../../../components/ui/ShoppingListPasteModal';
 import { useShoppingLists, ShoppingListItem } from '@/hooks/useShoppingLists';
 import { GenericResponse, GenericProduct, Group } from '@/types/models';
+import { buildShoppingListExport } from '@/utils/shoppingListExport';
 
 interface ShoppingListDetailClientProps {
     listId: string;
@@ -143,12 +144,8 @@ export default function ShoppingListDetailClient({
             return total + item.quantity * price;
         }, 0);
     };
-
     const handleExport = () => {
-        const { jsonString, fileName } = {
-            jsonString: JSON.stringify(list, null, 2),
-            fileName: `monopop-lista-${list.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.json`,
-        };
+        const { jsonString, fileName } = buildShoppingListExport(list);
         const blob = new Blob([jsonString], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
