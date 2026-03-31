@@ -1,56 +1,44 @@
-import { GenericProduct, GenericResponse, Group } from '@/types/models';
-import ShoppingListDetailClient from './ShoppingListDetailClient';
 import { notFound } from 'next/navigation';
 
-const API = process.env.NEXT_PUBLIC_API_URL;
+import ShoppingListDetailClient from './ShoppingListDetailClient';
+import { GenericProduct, GenericResponse, Group, GenericSummary } from '@/types/models';
 
-interface GenericSummary {
-  generic: string;
-  count: number;
-  with_size: number;
-  noise_count: number;
-}
+const API = process.env.NEXT_PUBLIC_API_URL;
 
 async function getAvailableGenerics(): Promise<string[]> {
   if (!API) {
     console.error('NEXT_PUBLIC_API_URL is not defined');
     return [];
   }
-
   try {
     const res = await fetch(`${API}/generics`, {
       cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
     });
-
-    if (!res.ok) {
-      console.error('Failed to fetch generics:', res.status);
-      return [];
-    }
-
+    if (!res.ok) return [];
     const data = await res.json();
     const genericsList = Array.isArray(data.generics) ? data.generics : [];
     return genericsList.map((g: GenericSummary) => g.generic);
-  } catch (err) {
-    console.error('Error fetching generics:', err);
+  } catch {
     return [];
   }
 }
 
-
-async function fetchGeneric(term: string, group?: string, sortBy?: string, store?: string): Promise<GenericResponse | null> {
+async function fetchGeneric(
+  term: string,
+  group?: string,
+  sortBy?: string,
+  store?: string
+): Promise<GenericResponse | null> {
   const params = new URLSearchParams();
-  // FIX: Always include group parameter, even if empty, to allow flat list mode
-  if (group !== undefined) params.set("group", group);
-  if (sortBy) params.set("sort_by", sortBy);
-  if (store) params.set("store", store);
+  if (group !== undefined) params.set('group', group); // empty string = flat list
+  if (sortBy) params.set('sort_by', sortBy);
+  if (store) params.set('store', store);
 
   try {
     const res = await fetch(
       `${API}/generics/${encodeURIComponent(term)}?${params}`,
-      { cache: "no-store" }
+      { cache: 'no-store' }
     );
     if (!res.ok) return null;
     return res.json();
@@ -59,104 +47,95 @@ async function fetchGeneric(term: string, group?: string, sortBy?: string, store
   }
 }
 
-
 export default async function ShoppingListDetailPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ term: string; product_id: string }>;
+  params: Promise<{ listId: string }>;
   searchParams: Promise<{
+    generic?: string;
+    productId?: string;
     group?: string;
     sort_by?: string;
     store?: string;
-    generic?: string;
   }>;
 }) {
-  const { term, product_id } = await params;
+  const { listId } = await params;
   const sp = await searchParams;
-  const decodedTerm = decodeURIComponent(term);
-  // FIX: Check if group is explicitly in search params, default to brand_size only if not present
-  const generic = sp.generic || "";
-  const currentGroup = sp.group !== undefined ? sp.group : "brand_size";
-  const currentSort = sp.sort_by || "price";
-  const currentStore = sp.store || "";
 
-  const data = await fetchGeneric(generic, currentGroup, currentSort, currentStore);
-  console.log("data", data);
-  if (!data) notFound();
-
-  // Determine if we're in grouped mode (backend returns groups when group_mode is set)
-  const isGrouped = !!data.group_mode && data.groups && data.groups.length > 0;
-
-  let allProducts: GenericProduct[] = [];
-  if (data.products) {
-    allProducts = data.products;
-  } else if (data.groups) {
-    allProducts = data.groups.flatMap(g => g.variants);
-  }
-
-
-  const isMainProductGlobalBest = false;
-  const minPricePerUnit = null;
-  let mainProductCanonicalKey: string | null = null;
-
-  const mainProduct: GenericProduct | undefined = allProducts.find(p => String(p.product_id) === product_id);
-  if (mainProduct) {
-
-    // Find the main product's canonical key using the group it belongs to
-    if (data.groups) {
-      const mainProductGroup = data.groups.find(g =>
-        g.variants.some(v => String(v.product_id) === product_id)
-      );
-      if (mainProductGroup) {
-        mainProductCanonicalKey = mainProductGroup.canonical_key;
-      }
-    }
-
-    // Calculate global best price per unit across ALL products
-    const availableProductsWithUnitPrice = allProducts.filter(p =>
-      p.price_per_unit !== null && p.available
-    );
-
-    const minPricePerUnit = availableProductsWithUnitPrice.length > 0
-      ? Math.min(...availableProductsWithUnitPrice.map(p => p.price_per_unit!))
-      : null;
-
-    const isMainProductGlobalBest = mainProduct.price_per_unit !== null &&
-      mainProduct.available &&
-      minPricePerUnit !== null &&
-      Math.abs(mainProduct.price_per_unit - minPricePerUnit) < 0.0001;
-  }
-  // Prepare related data (exclude main product)
-  let relatedGroups: Group[] = [];
-  let relatedProducts: GenericProduct[] = [];
-
-  if (isGrouped && data.groups) {
-    // Filter out main product from groups
-    relatedGroups = data.groups.map(group => ({
-      ...group,
-      variants: group.variants.filter(v => String(v.product_id) !== product_id)
-    })).filter(group => group.variants.length > 0);
-
-    // Sort groups: exact match first (only in brand_size mode)
-    if (currentGroup === "brand_size" && mainProductCanonicalKey) {
-      relatedGroups = [...relatedGroups].sort((a, b) => {
-        const aIsExact = a.canonical_key === mainProductCanonicalKey;
-        const bIsExact = b.canonical_key === mainProductCanonicalKey;
-
-        if (aIsExact && !bIsExact) return -1;
-        if (!aIsExact && bIsExact) return 1;
-        return 0;
-      });
-    }
-  } else if (data.products) {
-    // Flat list mode
-    relatedProducts = data.products.filter(p => String(p.product_id) !== product_id);
-  }
-
+  const generic = sp.generic ?? '';
+  const productId = sp.productId ? parseInt(sp.productId, 10) : undefined;
+  const currentGroup = sp.group ?? 'brand_size'; // default matches existing UI
+  const currentSort = sp.sort_by ?? 'price';
+  const currentStore = sp.store ?? '';
 
   const availableGenerics = await getAvailableGenerics();
 
+  // Only fetch when a generic is selected (panel is "open")
+  let data: GenericResponse | null = null;
+  let mainProduct: GenericProduct | undefined;
+  let relatedGroups: Group[] = [];
+  let relatedProducts: GenericProduct[] = [];
+  let isMainProductGlobalBest = false;
+  let minPricePerUnit: number | null = null;
 
-  return <ShoppingListDetailClient availableGenerics={availableGenerics} currentStore={currentStore} currentGroup={currentGroup} currentSort={currentSort} mainProduct={mainProduct} data={data} relatedGroups={relatedGroups} relatedProducts={relatedProducts} isMainProductGlobalBest={isMainProductGlobalBest} minPricePerUnit={minPricePerUnit} />;
+  if (generic) {
+    data = await fetchGeneric(generic, currentGroup, currentSort, currentStore);
+
+    if (!data) notFound();
+
+    // Flatten all products (grouped or flat mode)
+    const allProducts: GenericProduct[] = data.groups
+      ? data.groups.flatMap((g) => g.variants)
+      : data.products || [];
+
+    // Main product (pinned by productId)
+    mainProduct = allProducts.find((p) => p.product_id === productId);
+
+    // Global best-per-unit calculation (used by badges)
+    const availableWithUnit = allProducts.filter(
+      (p) => p.price_per_unit !== null && p.available
+    );
+    minPricePerUnit =
+      availableWithUnit.length > 0
+        ? Math.min(...availableWithUnit.map((p) => p.price_per_unit!))
+        : null;
+
+    if (mainProduct && minPricePerUnit !== null) {
+      isMainProductGlobalBest =
+        mainProduct.price_per_unit !== null &&
+        mainProduct.available &&
+        Math.abs(mainProduct.price_per_unit - minPricePerUnit) < 0.0001;
+    }
+
+    // Related items (exclude the pinned product)
+    if (data.groups) {
+      relatedGroups = data.groups
+        .map((group) => ({
+          ...group,
+          variants: group.variants.filter((v) => v.product_id !== productId),
+        }))
+        .filter((group) => group.variants.length > 0);
+    } else if (data.products) {
+      relatedProducts = data.products.filter((p) => p.product_id !== productId);
+    }
+  }
+
+  return (
+    <ShoppingListDetailClient
+      listId={listId}
+      availableGenerics={availableGenerics}
+      data={data}
+      mainProduct={mainProduct}
+      relatedGroups={relatedGroups}
+      relatedProducts={relatedProducts}
+      isMainProductGlobalBest={isMainProductGlobalBest}
+      minPricePerUnit={minPricePerUnit}
+      currentStore={currentStore}
+      currentGroup={currentGroup}
+      currentSort={currentSort}
+      generic={generic}
+      productId={productId}
+    />
+  );
 }

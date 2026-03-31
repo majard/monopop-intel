@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useShoppingLists, ShoppingList, ShoppingListItem } from '../../../hooks/useShoppingLists';
 import { buildShoppingListExport } from '../../../utils/shoppingListExport';
 import ShoppingListPasteModal from '../../../components/ui/ShoppingListPasteModal';
@@ -10,37 +10,42 @@ import ProductDetailPanel from '../../../components/ProductDetailPanel';
 import { GenericProduct, GenericResponse, Group } from '@/types/models';
 
 interface ShoppingListDetailClientProps {
+    listId: string;
     availableGenerics: string[];
+    data: GenericResponse | null;
     mainProduct?: GenericProduct;
     relatedGroups: Group[];
     relatedProducts: GenericProduct[];
     isMainProductGlobalBest: boolean;
     minPricePerUnit: number | null;
-    data: GenericResponse;
     currentStore: string;
     currentGroup: string;
     currentSort: string;
+    generic: string;
+    productId?: number;
 }
 
-export default function ShoppingListDetailClient({ availableGenerics, mainProduct, relatedGroups, relatedProducts, isMainProductGlobalBest, minPricePerUnit, data, currentStore, currentGroup, currentSort }: ShoppingListDetailClientProps) {
-    const params = useParams();
+export default function ShoppingListDetailClient({
+    listId,
+    availableGenerics,
+    data,
+    mainProduct,
+    relatedGroups,
+    relatedProducts,
+    isMainProductGlobalBest,
+    minPricePerUnit,
+    currentStore,
+    currentGroup,
+    currentSort,
+    generic,
+    productId,
+}: ShoppingListDetailClientProps) {
     const router = useRouter();
-    const listId = params.listId as string;
-
-    const {
-        lists,
-        renameList,
-        deleteList,
-        addItem,
-        updateItem,
-        removeItem,
-    } = useShoppingLists();
+    const { lists, renameList, deleteList, addItem, updateItem, removeItem } = useShoppingLists();
 
     const [showPasteModal, setShowPasteModal] = useState(false);
-    const [selectedGeneric, setSelectedGeneric] = useState<string | null>(null);
-    const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
 
-    const list = lists.find(l => l.id === listId);
+    const list = lists.find((l) => l.id === listId);
 
     if (!list) {
         return (
@@ -64,20 +69,21 @@ export default function ShoppingListDetailClient({ availableGenerics, mainProduc
         });
     };
 
-    const openProductPanel = (genericName: string, productId?: number) => {
-        setSelectedGeneric(genericName);
-        setSelectedProductId(productId);
+    const openProductPanel = (genericName: string, pinnedProductId?: number) => {
         const params = new URLSearchParams();
-        params.set('generic', encodeURIComponent(genericName));
-        if (productId) {
-            params.set('productId', productId.toString());
+        params.set('generic', genericName);
+        if (pinnedProductId !== undefined) {
+            params.set('productId', pinnedProductId.toString());
         }
-        router.push(`/shopping-lists/${listId}?${params.toString()}`);
+        if (currentStore) params.set('store', currentStore);
+        if (currentGroup) params.set('group', currentGroup);
+        if (currentSort) params.set('sort_by', currentSort);
+
+        router.replace(`/shopping-lists/${listId}?${params.toString()}`, { scroll: false });
     };
 
     const closeProductPanel = () => {
-        setSelectedGeneric(null);
-        setSelectedProductId(undefined);
+        router.replace(`/shopping-lists/${listId}`, { scroll: false });
     };
 
     const handleExport = () => {
@@ -107,10 +113,12 @@ export default function ShoppingListDetailClient({ availableGenerics, mainProduc
         }
     };
 
+    const isPanelOpen = !!generic && !!data;
+
     return (
         <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-6">
             <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 h-[calc(100vh-3rem)]">
-                {/* Left: Shopping List */}
+                {/* Left: Shopping List (always visible) */}
                 <div className="lg:w-5/12 flex flex-col">
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-4">
@@ -200,22 +208,20 @@ export default function ShoppingListDetailClient({ availableGenerics, mainProduc
                     )}
                 </div>
 
-                {/* Right: Product Detail Panel */}
-                {selectedGeneric && (
+                {/* Right: Product Detail Panel (only when open) */}
+                {isPanelOpen && data && (
                     <div className="lg:w-7/12 lg:border-l lg:border-zinc-800 lg:pl-6 flex flex-col h-full">
                         <ProductDetailPanel
-                            genericName={selectedGeneric}
-                            productId={selectedProductId}
-                            data={data}
-                            onClose={closeProductPanel}
+                            genericName={generic}
+                            productId={productId}
                             mainProduct={mainProduct}
                             relatedGroups={relatedGroups}
                             relatedProducts={relatedProducts}
-                            isMainProductGlobalBest={isMainProductGlobalBest}
-                            minPricePerUnit={minPricePerUnit}
+                            onClose={closeProductPanel}
+                            data={data}
+                            currentSort={currentSort}
                             currentStore={currentStore}
                             currentGroup={currentGroup}
-                            currentSort={currentSort}
                         />
                     </div>
                 )}

@@ -1,32 +1,30 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import FilterSelect from './ui/FilterSelect';
-import { GenericResponse, GenericProduct, Group, GenericSummary } from '../types/models';
-
-const API = process.env.NEXT_PUBLIC_API_URL;
+import FilterSelect from '@/components/ui/FilterSelect';
+import { GenericResponse, GenericProduct, Group } from '@/types/models';
 
 const STORE_LABELS: Record<string, string> = {
-    prezunic: "Prezunic",
-    zonasul: "Zona Sul",
-    hortifruti: "Hortifruti",
+    prezunic: 'Prezunic',
+    zonasul: 'Zona Sul',
+    hortifruti: 'Hortifruti',
 };
 
 const GROUP_OPTIONS = [
-    { value: "", label: "Lista simples" },
-    { value: "brand_size", label: "Por marca + tamanho" },
-    { value: "size_only", label: "Por tamanho" },
-    { value: "brand_only", label: "Por marca" },
+    { value: '', label: 'Lista simples' },
+    { value: 'brand_size', label: 'Por marca + tamanho' },
+    { value: 'size_only', label: 'Por tamanho' },
+    { value: 'brand_only', label: 'Por marca' },
 ];
 
 const SORT_OPTIONS = [
-    { value: "price", label: "Menor preço" },
-    { value: "price_per_unit", label: "Menor preço por unidade" },
+    { value: 'price', label: 'Menor preço' },
+    { value: 'price_per_unit', label: 'Menor preço por unidade' },
 ];
 
 function formatPrice(p: number | null): string {
-    if (p === null || p <= 0) return "—";
+    if (p === null || p <= 0) return '—';
     return `R$ ${p.toFixed(2)}`;
 }
 
@@ -34,46 +32,45 @@ interface ProductDetailPanelProps {
     genericName: string;
     productId?: number;
     mainProduct?: GenericProduct;
+    relatedGroups: Group[];
+    relatedProducts: GenericProduct[];
     onClose: () => void;
     data: GenericResponse;
-    relatedGroups?: Group[];
-    relatedProducts?: GenericProduct[];
-    isMainProductGlobalBest?: boolean;
-    minPricePerUnit?: number | null;
-    currentSort: string;
     currentStore: string;
     currentGroup: string;
+    currentSort: string;
 }
 
-
-export default function ProductDetailPanel({ genericName, productId, mainProduct, relatedGroups, relatedProducts, onClose, data, currentSort, currentStore, currentGroup }: ProductDetailPanelProps) {
-
+export default function ProductDetailPanel({
+    genericName,
+    productId,
+    mainProduct,
+    onClose,
+    data,
+    currentStore,
+    currentGroup,
+    currentSort,
+}: ProductDetailPanelProps) {
     if (!data) {
         return <div className="p-8 text-center text-zinc-500">Carregando detalhes do produto...</div>;
     }
 
-    console.log("data", data);
-
     const isGrouped = !!data.group_mode && data.groups !== undefined && data.groups.length > 0;
 
     const allProducts: GenericProduct[] = isGrouped
-        ? data.groups?.flatMap(g => g.variants) || []
+        ? data.groups?.flatMap((g) => g.variants) || []
         : data.products || [];
 
-    // Global best price per unit
-    const availableWithUnit = allProducts.filter(p => p.price_per_unit !== null && p.available);
-    const minPricePerUnit = availableWithUnit.length > 0
-        ? Math.min(...availableWithUnit.map(p => p.price_per_unit!))
-        : null;
+    // Global best price per unit (used for badges)
+    const availableWithUnit = allProducts.filter((p) => p.price_per_unit !== null && p.available);
+    const minPricePerUnit =
+        availableWithUnit.length > 0 ? Math.min(...availableWithUnit.map((p) => p.price_per_unit!)) : null;
 
-    // Helper to check if a product is global best
-    const isGlobalBestPerUnit = (product: GenericProduct) => {
-        return product.price_per_unit !== null &&
-            product.available &&
-            minPricePerUnit !== null &&
-            Math.abs(product.price_per_unit - minPricePerUnit) < 0.0001;
-    };
-
+    const isGlobalBestPerUnit = (product: GenericProduct) =>
+        product.price_per_unit !== null &&
+        product.available &&
+        minPricePerUnit !== null &&
+        Math.abs(product.price_per_unit - minPricePerUnit) < 0.0001;
 
     return (
         <div className="h-full flex flex-col">
@@ -83,55 +80,61 @@ export default function ProductDetailPanel({ genericName, productId, mainProduct
                     <h2 className="font-medium text-white">{genericName}</h2>
                     {mainProduct && <p className="text-sm text-zinc-500">{mainProduct.name}</p>}
                 </div>
-                <button onClick={onClose} className="text-2xl text-zinc-400 hover:text-white">×</button>
+                <button
+                    onClick={onClose}
+                    className="text-2xl text-zinc-400 hover:text-white transition-colors"
+                    aria-label="Fechar painel"
+                >
+                    ×
+                </button>
             </div>
 
             {/* Content */}
             <div className="flex-1 overflow-auto p-6">
-                {/* Grouping tabs */}
+                {/* Grouping tabs – FIXED: no manual encodeURIComponent */}
                 <div className="flex flex-wrap gap-1 mb-6 border-b border-zinc-800 pb-1 overflow-x-auto">
-                        {GROUP_OPTIONS.map(({ value, label }) => (
-                            <Link
-                                key={value}
-                                href={`?${new URLSearchParams({
-                                    ...(currentStore && { store: currentStore }),
-                                    group: value, // Always include, even if empty for flat list
-                                    sort_by: currentSort,
-                                }).toString()}`}
-                                className={`px-5 py-2 text-sm rounded-t-lg transition-all whitespace-nowrap font-medium ${currentGroup === value
-                                        ? "bg-zinc-900 border border-b-0 border-zinc-700 text-white"
-                                        : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-950"
-                                    }`}
-                            >
-                                {label}
-                            </Link>
-                        ))}
-                    </div>
+                    {GROUP_OPTIONS.map(({ value, label }) => (
+                        <Link
+                            key={value}
+                            href={`?${new URLSearchParams({
+                                generic: genericName, // raw string – URLSearchParams encodes once
+                                ...(productId && { productId: productId.toString() }),
+                                ...(currentStore && { store: currentStore }),
+                                group: value,
+                                sort_by: currentSort,
+                            }).toString()}`}
+                            replace
+                            scroll={false}
+                            className={`px-5 py-2 text-sm rounded-t-lg transition-all whitespace-nowrap font-medium ${currentGroup === value
+                                    ? 'bg-zinc-900 border border-b-0 border-zinc-700 text-white'
+                                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-950'
+                                }`}
+                        >
+                            {label}
+                        </Link>
+                    ))}
+                </div>
 
                 {/* Filters */}
                 <div className="flex flex-wrap gap-3 mb-8">
                     <FilterSelect
                         name="store"
                         options={[
-                            { value: "", label: "todas as lojas" },
+                            { value: '', label: 'todas as lojas' },
                             ...Object.entries(STORE_LABELS).map(([k, v]) => ({ value: k, label: v })),
                         ]}
                         defaultValue={currentStore}
                     />
-                    <FilterSelect
-                        name="sort_by"
-                        options={SORT_OPTIONS}
-                        defaultValue={currentSort}
-                    />
+                    <FilterSelect name="sort_by" options={SORT_OPTIONS} defaultValue={currentSort} />
                 </div>
 
-                {/* Products / Groups */}
+                {/* Products / Groups (unchanged) */}
                 {isGrouped && data.groups ? (
                     <div className="space-y-6">
                         {data.groups.map((group: Group) => {
                             const validPrices = group.variants
-                                .filter(v => v.price !== null && v.available)
-                                .map(v => v.price!);
+                                .filter((v) => v.price !== null && v.available)
+                                .map((v) => v.price!);
                             const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : null;
 
                             return (
@@ -139,7 +142,7 @@ export default function ProductDetailPanel({ genericName, productId, mainProduct
                                     <div className="flex justify-between mb-4">
                                         <div>
                                             <div className="font-semibold text-white">
-                                                {Array.isArray(group.brand) ? group.brand.join(" • ") : group.brand || "Sem marca"}
+                                                {Array.isArray(group.brand) ? group.brand.join(' • ') : group.brand || 'Sem marca'}
                                             </div>
                                             {group.normalized_size && (
                                                 <div className="text-sm text-zinc-400">{group.normalized_size}</div>
@@ -155,7 +158,7 @@ export default function ProductDetailPanel({ genericName, productId, mainProduct
                                             return (
                                                 <div
                                                     key={v.product_id}
-                                                    className={`relative flex justify-between items-center px-4 py-3 rounded border ${isCheapestInGroup ? "border-emerald-500/40" : "border-zinc-800"
+                                                    className={`relative flex justify-between items-center px-4 py-3 rounded border ${isCheapestInGroup ? 'border-emerald-500/40' : 'border-zinc-800'
                                                         } hover:border-emerald-500 transition-colors`}
                                                 >
                                                     {isCheapestInGroup && (
@@ -175,7 +178,7 @@ export default function ProductDetailPanel({ genericName, productId, mainProduct
 
                                                     <div className="text-sm pr-8">
                                                         <span className="text-zinc-400">{STORE_LABELS[v.store] ?? v.store}</span>
-                                                        {" • "}
+                                                        {' • '}
                                                         <span className="text-zinc-100">{v.name}</span>
                                                         {v.normalized_size && (
                                                             <span className="text-zinc-500 ml-2">({v.normalized_size})</span>
@@ -183,7 +186,7 @@ export default function ProductDetailPanel({ genericName, productId, mainProduct
                                                     </div>
 
                                                     <div className="text-right shrink-0">
-                                                        <div className={`font-medium ${isCheapestInGroup ? "text-emerald-400" : ""}`}>
+                                                        <div className={`font-medium ${isCheapestInGroup ? 'text-emerald-400' : ''}`}>
                                                             {formatPrice(v.price)}
                                                         </div>
                                                         {v.display_per_unit && (
@@ -218,9 +221,7 @@ export default function ProductDetailPanel({ genericName, productId, mainProduct
                                         )}
 
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-[15px] text-zinc-100 group-hover:text-white truncate">
-                                                {p.name}
-                                            </p>
+                                            <p className="text-[15px] text-zinc-100 group-hover:text-white truncate">{p.name}</p>
                                             <div className="flex flex-wrap gap-2 mt-2 text-xs">
                                                 <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
                                                     {STORE_LABELS[p.store] ?? p.store}
@@ -239,9 +240,7 @@ export default function ProductDetailPanel({ genericName, productId, mainProduct
                                         </div>
 
                                         <div className="text-right shrink-0">
-                                            <p className="text-emerald-400 font-bold text-[20px]">
-                                                {formatPrice(p.price)}
-                                            </p>
+                                            <p className="text-emerald-400 font-bold text-[20px]">{formatPrice(p.price)}</p>
                                             {p.display_per_unit && (
                                                 <p className="text-xs text-zinc-500">{p.display_per_unit}</p>
                                             )}
