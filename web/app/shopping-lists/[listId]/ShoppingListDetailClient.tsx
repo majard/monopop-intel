@@ -1,13 +1,12 @@
 // web/app/shopping-lists/[listId]/ShoppingListDetailClient.tsx
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useShoppingLists, ShoppingList, ShoppingListItem } from '../../../hooks/useShoppingLists';
-import { buildShoppingListExport } from '../../../utils/shoppingListExport';
-import ShoppingListPasteModal from '../../../components/ui/ShoppingListPasteModal';
+import React, { useState, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ProductDetailPanel from '../../../components/ProductDetailPanel';
-import { GenericProduct, GenericResponse, Group } from '@/types/models';
+import ShoppingListPasteModal from '../../../components/ui/ShoppingListPasteModal';
+import { useShoppingLists, ShoppingListItem } from '@/hooks/useShoppingLists';
+import { GenericResponse, GenericProduct, Group } from '@/types/models';
 
 interface ShoppingListDetailClientProps {
     listId: string;
@@ -41,19 +40,33 @@ export default function ShoppingListDetailClient({
     productId,
 }: ShoppingListDetailClientProps) {
     const router = useRouter();
+    const searchParams = useSearchParams();
+
+    // ALL HOOKS MUST BE AT THE TOP — BEFORE ANY EARLY RETURN
     const {
         lists,
         updateItem,
         removeItem,
         pinVariantToItem,
         unpinItem,
-        addItem
+        addItem,
     } = useShoppingLists();
 
     const [showPasteModal, setShowPasteModal] = useState(false);
 
     const list = lists.find((l) => l.id === listId);
 
+    // Safe memo — always runs, even if list is missing
+    const currentOpenItem = useMemo(() => {
+        if (!list || !generic) return undefined;
+        return list.items.find(
+            (item) =>
+                item.genericName === generic &&
+                (productId === undefined || item.productId === productId)
+        );
+    }, [list, generic, productId]);
+
+    // Early return ONLY after all hooks
     if (!list) {
         return (
             <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-6">
@@ -70,14 +83,14 @@ export default function ShoppingListDetailClient({
         );
     }
 
-    const currentOpenItem = list.items.find(
-        (item) => item.genericName === generic && item.productId === productId
-    );
-
     const openProductPanel = (genericName: string, pinnedProductId?: number) => {
-        const params = new URLSearchParams();
+        const params = new URLSearchParams(searchParams.toString());
         params.set('generic', genericName);
-        if (pinnedProductId !== undefined) params.set('productId', pinnedProductId.toString());
+        if (pinnedProductId !== undefined) {
+            params.set('productId', pinnedProductId.toString());
+        } else {
+            params.delete('productId');
+        }
         if (currentStore) params.set('store', currentStore);
         if (currentGroup) params.set('group', currentGroup);
         if (currentSort) params.set('sort_by', currentSort);
@@ -86,11 +99,23 @@ export default function ShoppingListDetailClient({
     };
 
     const closeProductPanel = () => {
-        router.replace(`/shopping-lists/${listId}`, { scroll: false });
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete('generic');
+        params.delete('productId');
+        router.replace(`/shopping-lists/${listId}?${params.toString()}`, { scroll: false });
     };
 
     const handlePin = (variantProductId: number, unit?: string, stdSize?: number, price?: number) => {
         if (!currentOpenItem) return;
+
+        console.log('[pin] values received:', {
+            variantProductId,
+            unit,
+            stdSize,
+            price,
+            currentOpenItemId: currentOpenItem.id,
+        });
+
         pinVariantToItem(
             listId,
             currentOpenItem.id,
@@ -107,8 +132,9 @@ export default function ShoppingListDetailClient({
 
     const handleAddFromPaste = (newItems: Array<{ genericName: string; quantity: number }>) => {
         newItems.forEach(({ genericName, quantity }) => {
-            addItem(listId, { genericName, quantity });
+            addItem(listId, { genericName, quantity: quantity || 1 });
         });
+        setShowPasteModal(false);
     };
 
     const calculateTotal = () => {
@@ -119,7 +145,10 @@ export default function ShoppingListDetailClient({
     };
 
     const handleExport = () => {
-        const { jsonString, fileName } = buildShoppingListExport(list);
+        const { jsonString, fileName } = {
+            jsonString: JSON.stringify(list, null, 2),
+            fileName: `monopop-lista-${list.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.json`,
+        };
         const blob = new Blob([jsonString], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -129,19 +158,6 @@ export default function ShoppingListDetailClient({
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-    };
-
-    const handleRename = () => {
-        const newName = prompt('Novo nome da lista:', list.name);
-        if (newName && newName.trim() !== list.name) {
-            // renameList(listId, newName.trim());
-        }
-    };
-
-    const handleDelete = () => {
-        if (confirm(`Excluir a lista "${list.name}"?`)) {
-            router.push('/shopping-lists');
-        }
     };
 
     const isPanelOpen = !!generic && !!data;
@@ -160,12 +176,7 @@ export default function ShoppingListDetailClient({
                                 ←
                             </button>
                             <div>
-                                <h1
-                                    onClick={handleRename}
-                                    className="text-2xl font-bold text-white cursor-pointer hover:text-emerald-400 transition-colors"
-                                >
-                                    {list.name}
-                                </h1>
+                                <h1 className="text-2xl font-bold text-white">{list.name}</h1>
                                 <p className="text-zinc-500 text-sm">
                                     {list.items.length} item{list.items.length !== 1 ? 's' : ''} •
                                     atualizado {new Date(list.updatedAt).toLocaleDateString('pt-BR')}
@@ -186,19 +197,13 @@ export default function ShoppingListDetailClient({
                             >
                                 Exportar
                             </button>
-                            <button
-                                onClick={handleDelete}
-                                className="text-red-400 hover:text-red-500 px-3 py-2"
-                            >
-                                Excluir
-                            </button>
                         </div>
                     </div>
 
                     {list.items.length === 0 ? (
                         <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center flex flex-col justify-center">
                             <p className="text-zinc-400">Esta lista ainda está vazia.</p>
-                            <p className="text-sm text-zinc-500 mt-2">Use "Colar lista" ou clique em itens nas páginas de genéricos.</p>
+                            <p className="text-sm text-zinc-500 mt-2">Use "Colar lista" ou adicione itens das páginas de genéricos.</p>
                         </div>
                     ) : (
                         <div className="flex-1 overflow-auto space-y-3 pr-2">
@@ -227,14 +232,12 @@ export default function ShoppingListDetailClient({
                                                 )}
                                             </div>
 
-                                            {/* Package size - shown when pinned */}
-                                            {isPinned && item.preferredStdSize && (
+                                            {isPinned && item.preferredStdSize && item.preferredUnit && (
                                                 <div className="text-zinc-500 text-xs mt-0.5">
-                                                    {item.preferredStdSize} {item.preferredUnit || 'un'}
+                                                    {item.preferredStdSize} {item.preferredUnit}
                                                 </div>
                                             )}
 
-                                            {/* Price: editable when NOT pinned, read-only when pinned */}
                                             {isPinned ? (
                                                 <div className="text-emerald-400 text-sm mt-1 font-medium">
                                                     R$ {item.pinnedPrice?.toFixed(2) || '—'}
@@ -245,9 +248,10 @@ export default function ShoppingListDetailClient({
                                                         type="number"
                                                         step="0.01"
                                                         placeholder="R$ 0,00"
+                                                        value={item.pinnedPrice ?? ''}
                                                         onChange={(e) =>
                                                             updateItem(listId, item.id, {
-                                                                pinnedPrice: parseFloat(e.target.value) || undefined,
+                                                                pinnedPrice: e.target.value ? parseFloat(e.target.value) : undefined,
                                                             })
                                                         }
                                                         onClick={(e) => e.stopPropagation()}
@@ -271,7 +275,9 @@ export default function ShoppingListDetailClient({
                                                 <input
                                                     type="number"
                                                     value={item.quantity}
-                                                    onChange={(e) => updateItem(listId, item.id, { quantity: parseInt(e.target.value) || 1 })}
+                                                    onChange={(e) =>
+                                                        updateItem(listId, item.id, { quantity: parseInt(e.target.value) || 1 })
+                                                    }
                                                     onClick={(e) => e.stopPropagation()}
                                                     className="w-12 bg-transparent text-center text-sm focus:outline-none"
                                                     min="1"
@@ -303,7 +309,6 @@ export default function ShoppingListDetailClient({
                         </div>
                     )}
 
-                    {/* Running total */}
                     {list.items.length > 0 && (
                         <div className="mt-auto pt-6 border-t border-zinc-800 flex justify-between items-baseline text-sm">
                             <span className="text-zinc-400">Total da lista</span>
