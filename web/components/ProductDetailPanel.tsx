@@ -109,8 +109,8 @@ export default function ProductDetailPanel({
                             replace
                             scroll={false}
                             className={`px-5 py-2 text-sm rounded-t-lg transition-all whitespace-nowrap font-medium ${currentGroup === value
-                                    ? 'bg-zinc-900 border border-b-0 border-zinc-700 text-white'
-                                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-950'
+                                ? 'bg-zinc-900 border border-b-0 border-zinc-700 text-white'
+                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-950'
                                 }`}
                         >
                             {label}
@@ -201,14 +201,14 @@ export default function ProductDetailPanel({
                                                             onClick={() =>
                                                                 onPinVariant(
                                                                     v.product_id,
-                                                                    v.unit || undefined,        // convert null to undefined
-                                                                    v.package_size || undefined,       
-                                                                    v.price || undefined        
+                                                                    group.unit || undefined,           // ← use group level
+                                                                    group.package_size || undefined,   // ← use group level
+                                                                    v.price || undefined
                                                                 )
                                                             }
                                                             className={`text-xs px-3 py-1 rounded border transition-colors ${isCurrentlyPinned
-                                                                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
-                                                                    : 'hover:bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'
+                                                                ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
+                                                                : 'hover:bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'
                                                                 }`}
                                                         >
                                                             {isCurrentlyPinned ? 'Fixado' : 'Fixar'}
@@ -223,6 +223,7 @@ export default function ProductDetailPanel({
                         })}
                     </div>
                 ) : (
+                    // Flat mode - use variant directly
                     <div className="flex flex-col gap-3">
                         {allProducts.map((p: GenericProduct) => {
                             const isBestPerUnit = isGlobalBestPerUnit(p);
@@ -273,14 +274,14 @@ export default function ProductDetailPanel({
                                                 onClick={() =>
                                                     onPinVariant(
                                                         p.product_id,
-                                                        p.unit || undefined,     // convert null → undefined
+                                                        p.unit || undefined,
                                                         p.package_size || undefined,
-                                                        p.price || undefined        
+                                                        p.price || undefined
                                                     )
                                                 }
                                                 className={`text-xs px-3 py-1 rounded border transition-colors ${isCurrentlyPinned
-                                                        ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
-                                                        : 'hover:bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'
+                                                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
+                                                    : 'hover:bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'
                                                     }`}
                                             >
                                                 {isCurrentlyPinned ? 'Fixado' : 'Fixar'}
