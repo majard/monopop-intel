@@ -28,6 +28,7 @@ const STORAGE_KEY = 'mintel-shopping-lists';
 export function useShoppingLists() {
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const isInitialized = useRef(false);
+  const [isReady, setIsReady] = useState(false);
 
   // Load from localStorage
   useEffect(() => {
@@ -49,6 +50,7 @@ export function useShoppingLists() {
         setLists([defaultList]);
         localStorage.setItem(STORAGE_KEY, JSON.stringify([defaultList]));
       }
+      setIsReady(true)
     } catch (e) {
       console.error('Failed to load shopping lists from localStorage', e);
     }
@@ -227,6 +229,7 @@ export function useShoppingLists() {
     unpinItem,
     getListById,
     getActiveList,
-    isInitialized
+    isInitialized, 
+    isReady
   };
 }

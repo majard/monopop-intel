@@ -43,6 +43,7 @@ interface ShoppingListDetailContextValue {
     updateItem: ReturnType<typeof useShoppingLists>['updateItem'];
     removeItem: ReturnType<typeof useShoppingLists>['removeItem'];
     addItem: ReturnType<typeof useShoppingLists>['addItem'];
+    isReady: boolean;
 }
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -100,6 +101,7 @@ export function ShoppingListDetailProvider({
         pinVariantToItem,
         unpinItem: unpinItemInList,
         addItem,
+        isReady,
     } = useShoppingLists();
 
     const list = lists.find((l) => l.id === listId);
@@ -186,6 +188,7 @@ export function ShoppingListDetailProvider({
             updateItem,
             removeItem,
             addItem,
+            isReady,
         }),
         [
             listId,
@@ -208,6 +211,7 @@ export function ShoppingListDetailProvider({
             updateItem,
             removeItem,
             addItem,
+            isReady,
         ]
     );
 
