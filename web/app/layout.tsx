@@ -28,7 +28,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100">
         <nav className="border-b bg-zinc-950 border-zinc-800">
-          <div className="max-w-3xl mx-auto px-6 py-6 flex items-baseline justify-between">
+          <div className="max-w-3xl mx-auto px-6 py-2 flex items-baseline justify-between">
             <div className="flex flex-col">
               <Link href="/" className="font-mono font-bold text-white hover:text-emerald-400 transition-colors text-2xl tracking-tighter">
                 monopop<span className="text-emerald-400">-intel</span>

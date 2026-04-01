@@ -160,11 +160,11 @@ export default function ShoppingListDetailClient({
     const isPanelOpen = !!generic && !!data;
 
     return (
-        <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-6">
-            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 h-[calc(100vh-3rem)] overflow-hidden">
+        <main className="h-screen bg-zinc-950 text-zinc-100 font-mono p-6 flex flex-col flex-1 overflow-hidden">
+            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 flex-1 min-h-0 w-full">
                 {/* Left: Shopping List */}
-                <div className="flex-1 flex flex-col min-h-0">
-                    <div className="flex items-center justify-between mb-6">
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <div className="flex items-center justify-between mb-6 flex-shrink-0">
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={() => router.push('/shopping-lists')}
@@ -198,12 +198,12 @@ export default function ShoppingListDetailClient({
                     </div>
 
                     {list.items.length === 0 ? (
-                        <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center flex flex-col justify-center">
+                        <div className="flex-1 min-h-0 bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center flex flex-col justify-center">
                             <p className="text-zinc-400">Esta lista ainda está vazia.</p>
                             <p className="text-sm text-zinc-500 mt-2">Use "Colar lista" ou adicione itens das páginas de genéricos.</p>
                         </div>
                     ) : (
-                        <div className="flex-1 overflow-auto space-y-3 pr-2">
+                        <div className="flex-1 overflow-y-auto space-y-3 pr-2 min-h-0">
                             {list.items.map((item: ShoppingListItem) => {
                                 const isPinned = !!item.productId;
 
@@ -307,7 +307,7 @@ export default function ShoppingListDetailClient({
                     )}
 
                     {list.items.length > 0 && (
-                        <div className="mt-auto pt-6 border-t border-zinc-800 flex justify-between items-baseline text-sm">
+                        <div className="flex-shrink-0 pt-6 border-t border-zinc-800 flex justify-between items-baseline text-sm">
                             <span className="text-zinc-400">Total da lista</span>
                             <span className="text-emerald-400 font-bold text-xl">
                                 R$ {calculateTotal().toFixed(2)}
@@ -318,7 +318,7 @@ export default function ShoppingListDetailClient({
 
                 {/* Right: Product Detail Panel */}
                 {isPanelOpen && data && (
-                    <div className="flex-1 lg:w-7/12 lg:border-l lg:border-zinc-800 lg:pl-6 flex flex-col min-h-0">
+                    <div className="flex-1 lg:w-7/12 lg:border-l lg:border-zinc-800 lg:pl-6 flex flex-col min-h-0 overflow-hidden">
                         <ProductDetailPanel
                             genericName={generic}
                             productId={productId}
