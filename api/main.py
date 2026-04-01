@@ -8,6 +8,8 @@ from cache import get_cached, init_db, make_query_key, purge_expired, set_cached
 from db import get_pool, init_schema
 from scraper.vtex import SORT_OPTIONS, STORES, search_async
 
+from fastapi.middleware.cors import CORSMiddleware
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,6 +27,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://monopop-intel.vercel.app",
+        "http://localhost:3000",
+    ],
+    allow_origin_regex=r"https://monopop-intel.*\.vercel\.app",
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
