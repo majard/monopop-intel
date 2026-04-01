@@ -204,7 +204,7 @@ export default function ShoppingListDetailClient({
                             <p className="text-sm text-zinc-500 mt-2">Use "Colar lista" ou adicione itens das páginas de genéricos.</p>
                         </div>
                     ) : (
-                        <div className="flex-1 overflow-y-auto space-y-3 pr-2 min-h-0">
+                        <div className="flex-1 overflow-y-auto scrollbar-subtle space-y-3 pr-2 min-h-0">
                             {list.items.map((item: ShoppingListItem) => {
                                 const isPinned = !!item.productId;
 
@@ -319,7 +319,7 @@ export default function ShoppingListDetailClient({
 
                 {/* Right: Product Detail Panel */}
                 {isPanelOpen && data && (
-                    <div className="flex-1 lg:w-7/12 lg:border-l lg:border-zinc-800 lg:pl-6 flex flex-col min-h-0 overflow-hidden">
+                    <div className="flex-1 lg:w-7/12 lg:border-l lg:border-zinc-800 lg:pl-6 flex flex-col min-h-0 overflow-hidden scrollbar-subtle">
                         <ProductDetailPanel
                             genericName={generic}
                             productId={productId}
