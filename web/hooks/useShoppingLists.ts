@@ -11,6 +11,7 @@ export interface ShoppingListItem {
   preferredUnit?: string;
   preferredStdSize?: number;
   pinnedPrice?: number;        // snapshot of the price at the moment of pinning
+  pinnedStore?: string;
   notes?: string;
 }
 
@@ -123,8 +124,10 @@ export function useShoppingLists() {
     productId: number,
     preferredUnit?: string,
     preferredStdSize?: number,
-    pinnedPrice?: number
+    pinnedPrice?: number,
+    pinnedStore?: string
   ) => {
+    console.log('[pin] values received:', { productId, preferredUnit, preferredStdSize, pinnedPrice, pinnedStore });
     setLists(prev =>
       prev.map(list =>
         list.id === listId
@@ -132,7 +135,14 @@ export function useShoppingLists() {
             ...list,
             items: list.items.map(item =>
               item.id === itemId
-                ? { ...item, productId, preferredUnit, preferredStdSize, pinnedPrice }
+                ? {
+                  ...item,
+                  productId,
+                  preferredUnit,
+                  preferredStdSize,
+                  pinnedPrice,
+                  pinnedStore
+                }
                 : item
             ),
             updatedAt: new Date().toISOString(),
@@ -150,7 +160,14 @@ export function useShoppingLists() {
             ...list,
             items: list.items.map(item =>
               item.id === itemId
-                ? { ...item, productId: undefined, pinnedPrice: undefined }
+                ? { 
+                  ...item, 
+                  productId: undefined, 
+                  pinnedPrice: undefined, 
+                  preferredUnit: undefined, 
+                  preferredStdSize: undefined, 
+                  pinnedStore: undefined 
+                }
                 : item
             ),
             updatedAt: new Date().toISOString(),

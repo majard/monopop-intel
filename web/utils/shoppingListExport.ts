@@ -67,12 +67,42 @@ export interface ListExportData {
   };
 }
 
+// Maps internal store key to mintel storeId
+const storeMap: Record<string, number> = {
+  prezunic: 101,
+  zonasul: 102,
+  hortifruti: 103,
+};
+
 /**
  * Converts a ShoppingList into a Monopop-compatible ListExportData JSON.
  * Matches the shape of a working export from Monopop ("Casa Express").
  * Uses pinnedPrice when available for product_store_prices.
  * Stores prefixed with [mintel] per spec.
+ * Builds product_store_prices ONLY for stores that have a pinned price.
+ * This prevents unwanted overrides in Monopop.
  */
+function buildProductStorePrices(items: ShoppingListItem[], now: string) {
+  const prices: any[] = [];
+
+  items.forEach((item, index) => {
+    if (!item.pinnedPrice || !item.pinnedStore) return;
+
+    const storeId = storeMap[item.pinnedStore];
+    if (!storeId) return;
+
+    prices.push({
+      productId: 1000 + index,
+      storeId,
+      price: item.pinnedPrice,
+      updatedAt: now,
+      packageSize: item.preferredStdSize ?? null,
+    });
+  });
+
+  return prices;
+}
+
 export function buildShoppingListExport(list: ShoppingList): {
   jsonString: string;
   fileName: string;
@@ -80,24 +110,16 @@ export function buildShoppingListExport(list: ShoppingList): {
   const now = new Date().toISOString();
   const safeName = list.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
 
-  // Minimal categories (Monopop tolerates one "Geral")
   const categories = [
-    {
-      id: 1,
-      name: 'Geral',
-      createdAt: now,
-      updatedAt: now,
-    },
+    { id: 1, name: 'Geral', createdAt: now, updatedAt: now },
   ];
 
-  // Mintel-prefixed stores (avoid collision with user stores)
   const stores = [
     { id: 101, name: '[mintel]prezunic', createdAt: now },
     { id: 102, name: '[mintel]zonasul', createdAt: now },
     { id: 103, name: '[mintel]hortifruti', createdAt: now },
   ];
 
-  // Products — one per unique genericName
   const products = list.items.map((item, index) => ({
     id: 1000 + index,
     name: item.genericName,
@@ -108,10 +130,9 @@ export function buildShoppingListExport(list: ShoppingList): {
     standardPackageSize: item.preferredStdSize ?? null,
   }));
 
-  // Inventory items
   const inventoryItems = list.items.map((item, index) => ({
     id: 2000 + index,
-    listId: 999, // synthetic
+    listId: 999,
     productId: 1000 + index,
     quantity: item.quantity,
     sortOrder: index,
@@ -120,7 +141,6 @@ export function buildShoppingListExport(list: ShoppingList): {
     updatedAt: now,
   }));
 
-  // Shopping list items
   const shoppingListItems = list.items.map((item, index) => ({
     id: 3000 + index,
     inventoryItemId: 2000 + index,
@@ -134,19 +154,7 @@ export function buildShoppingListExport(list: ShoppingList): {
     packageSize: item.preferredStdSize ?? null,
   }));
 
-  // Minimal product_store_prices using pinnedPrice when available
-  const productStorePrices = list.items
-    .map((item, index) => {
-      if (!item.pinnedPrice) return null;
-      return {
-        productId: 1000 + index,
-        storeId: 101, // default to prezunic for mintel items
-        price: item.pinnedPrice,
-        updatedAt: now,
-        packageSize: item.preferredStdSize ?? null,
-      };
-    })
-    .filter(Boolean) as any[];
+  const productStorePrices = buildProductStorePrices(list.items, now);
 
   const empty: any[] = [];
 
@@ -165,7 +173,7 @@ export function buildShoppingListExport(list: ShoppingList): {
       invoices: empty,
       invoice_items: empty,
       product_store_prices: productStorePrices,
-      product_base_prices: empty, // base prices optional for mintel export
+      product_base_prices: empty,
     },
   };
 
