@@ -50,9 +50,10 @@ export function useShoppingLists() {
         setLists([defaultList]);
         localStorage.setItem(STORAGE_KEY, JSON.stringify([defaultList]));
       }
-      setIsReady(true)
     } catch (e) {
       console.error('Failed to load shopping lists from localStorage', e);
+    } finally {
+      setIsReady(true)
     }
 
     isInitialized.current = true;
