@@ -160,7 +160,8 @@ export default function ShoppingListDetailClient({
     const isPanelOpen = !!generic && !!data;
 
     return (
-        <main className="h-screen bg-zinc-950 text-zinc-100 font-mono p-6 flex flex-col flex-1 overflow-hidden">
+        // h-[calc(100vh-68px)] - subtracts the height of the header (approximately 68px)
+        <main className="h-[calc(100vh-68px)] bg-zinc-950 text-zinc-100 font-mono p-6 flex flex-col overflow-hidden">
             <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 flex-1 min-h-0 w-full">
                 {/* Left: Shopping List */}
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
