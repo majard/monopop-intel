@@ -243,7 +243,7 @@ export default function ShoppingListDetailClient() {
 
         {/* Right: Product Detail Panel */}
         {isPanelOpen && (
-          <div className="flex-1 lg:max-w-[55%] lg:border-l lg:border-zinc-800 lg:pl-6 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 lg:max-w-[55%] lg:border-l lg:border-zinc-800 lg:pl-6 flex flex-col min-h-0 overflow-hidden scrollbar-subtle">
             <ProductDetailPanel />
           </div>
         )}
