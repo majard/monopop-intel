@@ -161,7 +161,7 @@ export default function ShoppingListPasteModal({
 
         {step === 'input' ? (
           <>
-            <div className="px-6 pb-4 flex-1 overflow-hidden flex flex-col min-h-0">
+            <div className="px-6 pb-4 flex-1 overflow-hidden flex flex-col min-h-0 scrollbar-subtle">
               <textarea
                 value={text}
                 onChange={event => setText(event.target.value)}

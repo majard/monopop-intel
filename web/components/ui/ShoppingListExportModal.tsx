@@ -138,7 +138,7 @@ export default function ShoppingListExportModal({
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1 px-6 pb-2 space-y-6">
+        <div className="overflow-y-auto flex-1 px-6 pb-2 space-y-6 scrollbar-subtle">
 
           {/* Store selection */}
           <div>
