@@ -7,6 +7,7 @@ import ShoppingListPasteModal from '../../../components/ui/ShoppingListPasteModa
 import { useShoppingListDetail } from './ShoppingListDetailContext';
 import { ShoppingListItem } from '@/hooks/useShoppingLists';
 import { buildShoppingListExport } from '@/utils/shoppingListExport';
+import { normalizeUnit } from '@/utils/normalizeUnit';
 
 export default function ShoppingListDetailClient() {
     const router = useRouter();
@@ -152,7 +153,7 @@ export default function ShoppingListDetailClient() {
 
                                             {isPinned && item.preferredStdSize && item.preferredUnit && (
                                                 <div className="text-zinc-500 text-xs mt-0.5">
-                                                    {item.preferredStdSize} {item.preferredUnit}
+                                                    {normalizeUnit(item.preferredStdSize, item.preferredUnit).display}
                                                 </div>
                                             )}
 

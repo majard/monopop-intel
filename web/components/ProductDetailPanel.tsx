@@ -31,6 +31,7 @@ function formatPrice(p: number | null): string {
 
 export default function ProductDetailPanel() {
   const {
+    isFetchingPanel,
     generic,
     productId,
     mainProduct,
@@ -47,12 +48,16 @@ export default function ProductDetailPanel() {
   const genericName = generic;
   const pinnedProductId = currentOpenItem?.productId;
 
-  if (!data) {
+  if (isFetchingPanel) {
     return (
       <div className="p-8 text-center text-zinc-500">
         Carregando detalhes do produto...
       </div>
     );
+  }
+
+  if (!data) {
+    return null;
   }
 
   const isGrouped =
