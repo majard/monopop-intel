@@ -2,57 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import FilterSelect from "@/components/ui/FilterSelect";
 import AddToListButton from "@/components/ui/AddToListButton";
+import { STORES } from '@/constants/stores';
+import { GenericProduct, Group, GenericResponse } from "@/types/models";
+
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-interface GenericProduct {
-  product_id: number;
-  name: string;
-  store: string;
-  price: number | null;
-  package_size: number | null;
-  unit: string | null;
-  parsed_brand: string | null;
-  available: boolean;
-  price_per_unit: number | null;
-  normalized_size: string | null;
-  display_per_unit: string | null;
-  brand?: string | null;
-  ean?: string | null;
-  category?: string | null;
-  url?: string | null;
-}
-
-interface Group {
-  canonical_key: string;
-  generic: string;
-  brand: string | string[] | null;
-  package_size: number | null;
-  unit: string | null;
-  normalized_size: string | null;
-  variants: GenericProduct[];
-  price_stats: {
-    min: number | null;
-    max: number | null;
-    avg: number | null;
-  };
-}
-
-interface GenericResponse {
-  generic: string;
-  count: number;
-  products?: GenericProduct[];
-  groups?: Group[];
-  group_mode?: string | null;
-  sort_by: string;
-  _meta: any;
-}
-
-const STORE_LABELS: Record<string, string> = {
-  prezunic: "Prezunic",
-  zonasul: "Zona Sul",
-  hortifruti: "Hortifruti",
-};
 
 const GROUP_OPTIONS = [
   { value: "", label: "Lista simples" },
@@ -200,7 +155,7 @@ export default async function GenericProductPage({
           <span className="text-zinc-500 truncate">{mainProduct.name}</span>
         </div>
 
-        {/* Main Product Header */}
+        {/* ── Main product header ────────────────────────────────────────────────────── */}
         <div className="mb-8">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -214,6 +169,13 @@ export default async function GenericProductPage({
               {mainProduct.display_per_unit && (
                 <p className="text-xs text-zinc-500 mt-0.5">{mainProduct.display_per_unit}</p>
               )}
+              {mainProduct.list_price != null &&
+                mainProduct.price != null &&
+                mainProduct.list_price > mainProduct.price && (
+                  <p className="text-xs text-zinc-600 line-through mt-0.5">
+                    {formatPrice(mainProduct.list_price)}
+                  </p>
+                )}
               {isMainProductGlobalBest && (
                 <div className="mt-2">
                   <span className="bg-amber-500 text-zinc-950 text-[10px] font-bold px-2.5 py-0.5 rounded">
@@ -227,7 +189,7 @@ export default async function GenericProductPage({
           {/* Metadata badges */}
           <div className="flex flex-wrap gap-2 mt-3">
             <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
-              {STORE_LABELS[mainProduct.store] ?? mainProduct.store}
+              {STORES[mainProduct.store as keyof typeof STORES]?.label ?? mainProduct.store}
             </span>
             {mainProduct.normalized_size && (
               <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -245,6 +207,7 @@ export default async function GenericProductPage({
               </span>
             )}
             {mainProduct.url && (
+
               <a
                 href={mainProduct.url}
                 target="_blank"
@@ -255,19 +218,28 @@ export default async function GenericProductPage({
               </a>
             )}
           </div>
-          <div className="mt-4">
-            <AddToListButton term={decodedTerm} />
-          </div>
-        </div>
 
-        {/* History Link */}
-        <div className="mb-12">
-          <a
-            href={`/history/${encodeURIComponent(decodedTerm)}/${product_id}`}
-            className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition-colors text-sm font-medium"
-          >
-            Ver histórico completo de preços →
-          </a>
+          {/* Actions row */}
+          <div className="flex items-center gap-4 mt-4 pt-4 border-t border-zinc-800/60">
+
+            <Link
+              href={`/history/${encodeURIComponent(decodedTerm)}/${product_id}`}
+              className="text-sm text-zinc-500 hover:text-emerald-400 transition-colors"
+            >
+              histórico de preços →
+            </Link>
+            <span className="text-zinc-800">·</span>
+            <AddToListButton
+              term={decodedTerm}
+              productId={mainProduct.product_id}
+              price={mainProduct.price}
+              store={mainProduct.store}
+              unit={mainProduct.unit}
+              stdSize={mainProduct.package_size ?? undefined}
+              className="text-sm text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer disabled:opacity-40"
+              label="+ adicionar à lista"
+            />
+          </div>
         </div>
 
         {/* Related Variants Section */}
@@ -300,7 +272,10 @@ export default async function GenericProductPage({
               name="store"
               options={[
                 { value: "", label: "todas as lojas" },
-                ...Object.entries(STORE_LABELS).map(([k, v]) => ({ value: k, label: v })),
+                ...Object.entries(STORES).map(([k, v]) => ({
+                  value: k,
+                  label: STORES[k as keyof typeof STORES]?.label ?? k
+                })),
               ]}
               defaultValue={currentStore ?? ""}
             />
@@ -371,7 +346,7 @@ export default async function GenericProductPage({
                               )}
 
                               <div className="text-sm pr-8">
-                                <span className="text-zinc-400">{STORE_LABELS[v.store] ?? v.store}</span>
+                                <span className="text-zinc-400">{STORES[v.store as keyof typeof STORES]?.label ?? v.store}</span>
                                 {" • "}
                                 <span className="text-zinc-100 group-hover:text-emerald-400 transition-colors">{v.name}</span>
                                 {v.normalized_size && (
@@ -424,7 +399,7 @@ export default async function GenericProductPage({
                         </p>
                         <div className="flex flex-wrap gap-2 mt-2 text-xs">
                           <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
-                            {STORE_LABELS[p.store] ?? p.store}
+                            {STORES[p.store as keyof typeof STORES]?.label ?? p.store}
                           </span>
                           {p.parsed_brand && (
                             <span className="px-2 py-0.5 rounded bg-zinc-800/70 text-zinc-500 border border-zinc-800">
@@ -459,7 +434,7 @@ export default async function GenericProductPage({
             <p className="text-zinc-600 text-sm">Nenhuma variação encontrada.</p>
           )}
         </div>
-      </div>
-    </main>
+      </div >
+    </main >
   );
 }

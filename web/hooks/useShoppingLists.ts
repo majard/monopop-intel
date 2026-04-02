@@ -47,7 +47,7 @@ export function useShoppingLists() {
     }
   }, [lists]);
 
-  const createList = useCallback((name = 'Nova Lista') => {
+  const createList = useCallback((name = 'Nova Lista'): string => {
     const newList: ShoppingList = {
       id: `list-${Date.now()}`,
       name: name.trim() || `Lista ${lists.length + 1}`,
