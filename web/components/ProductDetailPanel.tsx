@@ -47,7 +47,7 @@ export default function ProductDetailPanel() {
 
   const lastMainProduct = useRef<GenericProduct | undefined>(undefined);
   if (mainProduct) lastMainProduct.current = mainProduct;
-  const displayProduct = mainProduct ?? (isFetchingPanel ? lastMainProduct.current : undefined);
+  const displayProduct = mainProduct ?? lastMainProduct.current;
 
   const isGrouped = !!data?.group_mode && !!data.groups?.length;
 
@@ -145,6 +145,12 @@ export default function ProductDetailPanel() {
                   <p className="text-emerald-400 font-bold tabular-nums">
                     {formatPrice(displayProduct.price)}
                   </p>
+
+                  {displayProduct && isGlobalBest(displayProduct) && (
+                    <span className="text-[9px] mt-1 mr-1 inline-block bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                      melhor/unid
+                    </span>
+                  )}
                   {pinnedProductId && currentOpenItem && (
                     <button
                       onClick={() => unpinItem(currentOpenItem.id)}
@@ -153,11 +159,6 @@ export default function ProductDetailPanel() {
                     >
                       fixado
                     </button>
-                  )}
-                  {displayProduct && isGlobalBest(displayProduct) && (
-                    <span className="text-[9px] mt-1 inline-block bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded">
-                      melhor/unid
-                    </span>
                   )}
                 </div>
               </div>
