@@ -1,126 +1,206 @@
-import { ShoppingList, ShoppingListItem } from '../hooks/useShoppingLists';
+import type { ShoppingList, ShoppingListItem, GenericResponse, GenericProduct, PricingStrategy, StoreKey } from '@/types/models';
+import { STORES, STORE_KEYS } from '@/constants/stores';
 
-export interface ListExportData {
+export type { PricingStrategy };
+
+export interface ExportOptions {
+  selectedStores: StoreKey[];
+  fillStrategy: PricingStrategy;
+  getCachedGeneric: (term: string) => GenericResponse | null;
+}
+
+// ─── Price resolution ────────────────────────────────────────────────────────
+
+function findBestProductForStore(
+  products: GenericProduct[],
+  store: StoreKey,
+  strategy: Exclude<PricingStrategy, 'none'>
+): GenericProduct | null {
+  const candidates = products.filter(
+    product => product.store === store && product.available && product.price !== null
+  );
+  if (candidates.length === 0) return null;
+
+  if (strategy === 'price_per_unit') {
+    const withUnit = candidates.filter(product => product.price_per_unit !== null);
+    if (withUnit.length > 0) {
+      return withUnit.reduce((best, product) =>
+        product.price_per_unit! < best.price_per_unit! ? product : best
+      );
+    }
+  }
+
+  return candidates.reduce((best, product) =>
+    product.price! < best.price! ? product : best
+  );
+}
+
+export type PriceSource = 'pinned' | 'manual' | 'filled';
+
+export interface ResolvedStorePrice {
+  store: StoreKey;
+  storeId: number;
+  price: number;
+  packageSize: number | null;
+  source: PriceSource;
+}
+
+export interface ResolvedItem {
+  item: ShoppingListItem;
+  productIndex: number;
+  prices: ResolvedStorePrice[];
+}
+
+export function resolveExportPrices(
+  list: ShoppingList,
+  options: ExportOptions
+): ResolvedItem[] {
+  return list.items.map((item, productIndex) => {
+    const prices: ResolvedStorePrice[] = [];
+
+    const isPinned = !!item.productId && !!item.pinnedStore && !!item.pinnedPrice;
+
+    if (isPinned) {
+      // Pinned prices are sacred — always preserved, never overwritten
+      const storeId = STORES[item.pinnedStore as StoreKey]?.monopopId;
+      if (storeId) {
+        prices.push({
+          store: item.pinnedStore as StoreKey,
+          storeId,
+          price: item.pinnedPrice!,
+          packageSize: item.preferredStdSize ?? null,
+          source: 'pinned',
+        });
+      }
+    } 
+
+
+    // Fill remaining stores from cache if strategy allows
+    if (options.fillStrategy !== 'none') {
+      const cachedData = options.getCachedGeneric(item.genericName);
+      if (cachedData) {
+        const allProducts: GenericProduct[] = cachedData.groups
+          ? cachedData.groups.flatMap(group => group.variants.map(variant => ({ ...variant, package_size: group.package_size, unit: group.unit })))
+          : cachedData.products ?? [];
+
+
+        for (const store of options.selectedStores) {
+          // Never override a price we already have for this store
+          if (prices.some(price => price.store === store)) continue;
+
+          const best = findBestProductForStore(allProducts, store, options.fillStrategy);
+          if (best) {
+            prices.push({
+              store,
+              storeId: STORES[store].monopopId,
+              price: best.price!,
+              packageSize: best.package_size,
+              source: 'filled',
+            });
+          }
+        }
+      }
+    }
+
+    return { item, productIndex, prices };
+  });
+}
+
+// ─── Monopop export format ───────────────────────────────────────────────────
+
+interface MonopopCategory {
+  id: number;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MonopopStore {
+  id: number;
+  name: string;
+  createdAt: string;
+}
+
+interface MonopopProduct {
+  id: number;
+  name: string;
+  categoryId: number;
+  createdAt: string;
+  updatedAt: string;
+  unit: string | null;
+  standardPackageSize: number | null;
+}
+
+interface MonopopInventoryItem {
+  id: number;
+  listId: number;
+  productId: number;
+  quantity: number;
+  sortOrder: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MonopopShoppingListItem {
+  id: number;
+  inventoryItemId: number;
+  quantity: number;
+  checked: number;
+  price: number | null;
+  sortOrder: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  packageSize: number | null;
+}
+
+interface MonopopProductStorePrice {
+  productId: number;
+  storeId: number;
+  price: number;
+  updatedAt: string;
+  packageSize: number | null;
+}
+
+export interface MonopopExport {
   type: 'list_export';
   version: '1.0';
   exportedAt: string;
   listName: string;
   data: {
-    categories: Array<{
-      id: number;
-      name: string;
-      createdAt: string;
-      updatedAt: string;
-    }>;
-    stores: Array<{
-      id: number;
-      name: string;
-      createdAt: string;
-    }>;
-    products: Array<{
-      id: number;
-      name: string;
-      categoryId: number | null;
-      createdAt: string;
-      updatedAt: string;
-      unit: string | null;
-      standardPackageSize: number | null;
-    }>;
-    inventory_items: Array<{
-      id: number;
-      listId: number;
-      productId: number;
-      quantity: number;
-      sortOrder: number;
-      notes: string | null;
-      createdAt: string;
-      updatedAt: string;
-    }>;
-    inventory_history: any[];
-    shopping_list_items: Array<{
-      id: number;
-      inventoryItemId: number;
-      quantity: number;
-      checked: number;
-      price: number | null;
-      sortOrder: number;
-      notes: string | null;
-      createdAt: string;
-      updatedAt: string;
-      packageSize: number | null;
-    }>;
-    invoices: any[];
-    invoice_items: any[];
-    product_store_prices: Array<{
-      productId: number;
-      storeId: number;
-      price: number | null;
-      updatedAt: string;
-      packageSize: number | null;
-    }>;
-    product_base_prices: Array<{
-      productId: number;
-      price: number | null;
-      updatedAt: string;
-      packageSize: number | null;
-    }>;
+    categories: MonopopCategory[];
+    stores: MonopopStore[];
+    products: MonopopProduct[];
+    inventory_items: MonopopInventoryItem[];
+    inventory_history: never[];
+    shopping_list_items: MonopopShoppingListItem[];
+    invoices: never[];
+    invoice_items: never[];
+    product_store_prices: MonopopProductStorePrice[];
+    product_base_prices: never[];
   };
 }
 
-// Maps internal store key to mintel storeId
-const storeMap: Record<string, number> = {
-  prezunic: 101,
-  zonasul: 102,
-  hortifruti: 103,
-};
-
-/**
- * Converts a ShoppingList into a Monopop-compatible ListExportData JSON.
- * Matches the shape of a working export from Monopop ("Casa Express").
- * Uses pinnedPrice when available for product_store_prices.
- * Stores prefixed with [mintel] per spec.
- * Builds product_store_prices ONLY for stores that have a pinned price.
- * This prevents unwanted overrides in Monopop.
- */
-function buildProductStorePrices(items: ShoppingListItem[], now: string) {
-  const prices: any[] = [];
-
-  items.forEach((item, index) => {
-    if (!item.pinnedPrice || !item.pinnedStore) return;
-
-    const storeId = storeMap[item.pinnedStore];
-    if (!storeId) return;
-
-    prices.push({
-      productId: 1000 + index,
-      storeId,
-      price: item.pinnedPrice,
-      updatedAt: now,
-      packageSize: item.preferredStdSize ?? null,
-    });
-  });
-
-  return prices;
-}
-
-export function buildShoppingListExport(list: ShoppingList): {
-  jsonString: string;
-  fileName: string;
-} {
+export function buildShoppingListExport(
+  list: ShoppingList,
+  options: ExportOptions
+): { jsonString: string; fileName: string } {
   const now = new Date().toISOString();
   const safeName = list.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+  const resolvedItems = resolveExportPrices(list, options);
 
-  const categories = [
+  const categories: MonopopCategory[] = [
     { id: 1, name: 'Geral', createdAt: now, updatedAt: now },
   ];
 
-  const stores = [
-    { id: 101, name: '[mintel]prezunic', createdAt: now },
-    { id: 102, name: '[mintel]zonasul', createdAt: now },
-    { id: 103, name: '[mintel]hortifruti', createdAt: now },
-  ];
+  const stores: MonopopStore[] = STORE_KEYS.map(key => ({
+    id: STORES[key].monopopId,
+    name: STORES[key].monopopName,
+    createdAt: now,
+  }));
 
-  const products = list.items.map((item, index) => ({
+  const products: MonopopProduct[] = list.items.map((item, index) => ({
     id: 1000 + index,
     name: item.genericName,
     categoryId: 1,
@@ -130,35 +210,44 @@ export function buildShoppingListExport(list: ShoppingList): {
     standardPackageSize: item.preferredStdSize ?? null,
   }));
 
-  const inventoryItems = list.items.map((item, index) => ({
+  const inventoryItems: MonopopInventoryItem[] = list.items.map((item, index) => ({
     id: 2000 + index,
     listId: 999,
     productId: 1000 + index,
-    quantity: item.quantity,
+    quantity: 0,
     sortOrder: index,
     notes: item.notes ?? null,
     createdAt: now,
     updatedAt: now,
   }));
 
-  const shoppingListItems = list.items.map((item, index) => ({
-    id: 3000 + index,
-    inventoryItemId: 2000 + index,
-    quantity: item.quantity,
-    checked: 0,
-    price: item.pinnedPrice ?? null,
-    sortOrder: index,
-    notes: item.notes ?? null,
-    createdAt: now,
-    updatedAt: now,
-    packageSize: item.preferredStdSize ?? null,
-  }));
+  const shoppingListItems: MonopopShoppingListItem[] = resolvedItems.map(
+    ({ item, productIndex }) => ({
+      id: 3000 + productIndex,
+      inventoryItemId: 2000 + productIndex,
+      quantity: item.quantity,
+      checked: 0,
+      price: item.pinnedPrice ?? null,
+      sortOrder: productIndex,
+      notes: item.notes ?? null,
+      createdAt: now,
+      updatedAt: now,
+      packageSize: item.preferredStdSize ?? null,
+    })
+  );
 
-  const productStorePrices = buildProductStorePrices(list.items, now);
+  const productStorePrices: MonopopProductStorePrice[] = resolvedItems.flatMap(
+    ({ productIndex, prices }) =>
+      prices.map(resolvedPrice => ({
+        productId: 1000 + productIndex,
+        storeId: resolvedPrice.storeId,
+        price: resolvedPrice.price,
+        updatedAt: now,
+        packageSize: resolvedPrice.packageSize,
+      }))
+  );
 
-  const empty: any[] = [];
-
-  const exportData: ListExportData = {
+  const exportPayload: MonopopExport = {
     type: 'list_export',
     version: '1.0',
     exportedAt: now,
@@ -168,18 +257,18 @@ export function buildShoppingListExport(list: ShoppingList): {
       stores,
       products,
       inventory_items: inventoryItems,
-      inventory_history: empty,
+      inventory_history: [],
       shopping_list_items: shoppingListItems,
-      invoices: empty,
-      invoice_items: empty,
+      invoices: [],
+      invoice_items: [],
       product_store_prices: productStorePrices,
-      product_base_prices: empty,
+      product_base_prices: [],
     },
   };
 
-  const jsonString = JSON.stringify(exportData, null, 2);
   const timestamp = now.slice(0, 16).replace(/[:T]/g, '').replace(/-/g, '');
-  const fileName = `monopop-lista-${safeName}-${timestamp}.json`;
-
-  return { jsonString, fileName };
+  return {
+    jsonString: JSON.stringify(exportPayload, null, 2),
+    fileName: `monopop-lista-${safeName}-${timestamp}.json`,
+  };
 }

@@ -1,27 +1,9 @@
-// web/hooks/useShoppingLists.ts
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { ShoppingListItem, ShoppingList } from '@/types/models';
 
-export interface ShoppingListItem {
-  id: string;
-  genericName: string;
-  productId?: number;
-  quantity: number;
-  preferredUnit?: string;
-  preferredStdSize?: number;
-  pinnedPrice?: number;        // snapshot of the price at the moment of pinning
-  pinnedStore?: string;
-  notes?: string;
-}
-
-export interface ShoppingList {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  items: ShoppingListItem[];
-}
+export type { ShoppingListItem, ShoppingList };
 
 const STORAGE_KEY = 'mintel-shopping-lists';
 
@@ -30,15 +12,13 @@ export function useShoppingLists() {
   const isInitialized = useRef(false);
   const [isReady, setIsReady] = useState(false);
 
-  // Load from localStorage
   useEffect(() => {
     if (isInitialized.current) return;
 
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        setLists(parsed);
+        setLists(JSON.parse(saved));
       } else {
         const defaultList: ShoppingList = {
           id: `list-${Date.now()}`,
@@ -50,27 +30,24 @@ export function useShoppingLists() {
         setLists([defaultList]);
         localStorage.setItem(STORAGE_KEY, JSON.stringify([defaultList]));
       }
-    } catch (e) {
-      console.error('Failed to load shopping lists from localStorage', e);
+    } catch (error) {
+      console.error('Failed to load shopping lists from localStorage', error);
     } finally {
-      setIsReady(true)
+      isInitialized.current = true;
+      setIsReady(true);
     }
-
-    isInitialized.current = true;
   }, []);
 
-  // Save to localStorage immediately on any change
   useEffect(() => {
     if (!isInitialized.current || lists.length === 0) return;
-
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(lists));
-    } catch (e) {
-      console.error('Failed to save shopping lists to localStorage', e);
+    } catch (error) {
+      console.error('Failed to save shopping lists to localStorage', error);
     }
   }, [lists]);
 
-  const createList = useCallback((name: string = 'Nova Lista') => {
+  const createList = useCallback((name = 'Nova Lista') => {
     const newList: ShoppingList = {
       id: `list-${Date.now()}`,
       name: name.trim() || `Lista ${lists.length + 1}`,
@@ -97,27 +74,18 @@ export function useShoppingLists() {
   }, []);
 
   const addItem = useCallback((listId: string, item: Omit<ShoppingListItem, 'id'>) => {
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 1000000);
-
     const newItem: ShoppingListItem = {
       ...item,
-      id: `item-${timestamp}-${random}`,
+      id: `item-${Date.now()}-${Math.floor(Math.random() * 1000000)}`,
       quantity: item.quantity || 1,
     };
-
     setLists(prev =>
       prev.map(list =>
         list.id === listId
-          ? {
-            ...list,
-            items: [...list.items, newItem],
-            updatedAt: new Date().toISOString(),
-          }
+          ? { ...list, items: [...list.items, newItem], updatedAt: new Date().toISOString() }
           : list
       )
     );
-
     return newItem.id;
   }, []);
 
@@ -130,7 +98,6 @@ export function useShoppingLists() {
     pinnedPrice?: number,
     pinnedStore?: string
   ) => {
-    console.log('[pin] values received:', { productId, preferredUnit, preferredStdSize, pinnedPrice, pinnedStore });
     setLists(prev =>
       prev.map(list =>
         list.id === listId
@@ -138,14 +105,7 @@ export function useShoppingLists() {
             ...list,
             items: list.items.map(item =>
               item.id === itemId
-                ? {
-                  ...item,
-                  productId,
-                  preferredUnit,
-                  preferredStdSize,
-                  pinnedPrice,
-                  pinnedStore
-                }
+                ? { ...item, productId, preferredUnit, preferredStdSize, pinnedPrice, pinnedStore }
                 : item
             ),
             updatedAt: new Date().toISOString(),
@@ -163,13 +123,13 @@ export function useShoppingLists() {
             ...list,
             items: list.items.map(item =>
               item.id === itemId
-                ? { 
-                  ...item, 
-                  productId: undefined, 
-                  pinnedPrice: undefined, 
-                  preferredUnit: undefined, 
-                  preferredStdSize: undefined, 
-                  pinnedStore: undefined 
+                ? {
+                  ...item,
+                  productId: undefined,
+                  pinnedPrice: undefined,
+                  pinnedStore: undefined,
+                  preferredUnit: undefined,
+                  preferredStdSize: undefined,
                 }
                 : item
             ),
@@ -214,9 +174,7 @@ export function useShoppingLists() {
     return lists.find(list => list.id === listId);
   }, [lists]);
 
-  const getActiveList = useCallback(() => {
-    return lists[0] || null;
-  }, [lists]);
+  const getActiveList = useCallback(() => lists[0] ?? null, [lists]);
 
   return {
     lists,
@@ -230,7 +188,7 @@ export function useShoppingLists() {
     unpinItem,
     getListById,
     getActiveList,
-    isInitialized, 
-    isReady
+    isInitialized,
+    isReady,
   };
 }

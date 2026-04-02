@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { calculateSimilarity } from '../../utils/similarityUtils';
+import { calculateSimilarity } from '@/utils/similarityUtils';
 
 interface MatchResult {
   pastedName: string;
@@ -17,6 +17,36 @@ interface ShoppingListPasteModalProps {
   availableGenerics: string[];
 }
 
+function parseListText(text: string): Array<{ original: string; pastedName: string; quantity: number }> {
+  return text
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      // Strip emojis and common bullet characters
+      const clean = line.replace(/[\u{1F300}-\u{1F9FF}]|[-•▪︎]/gu, '').trim();
+      // Detect quantity patterns like ": 2" or trailing "x2" or just "2" at end
+      const quantityMatch =
+        clean.match(/:\s*(\d+)/) ||
+        clean.match(/\bx\s*(\d+)\s*$/i) ||
+        clean.match(/\s+(\d+)\s*$/);
+      const quantity = quantityMatch ? parseInt(quantityMatch[1], 10) : 1;
+      const pastedName = clean
+        .replace(/:\s*\d+.*$/, '')
+        .replace(/\bx\s*\d+\s*$/i, '')
+        .replace(/\s+\d+\s*$/, '')
+        .trim();
+
+      return { original: line, pastedName, quantity };
+    });
+}
+
+const PLACEHOLDER = `Exemplos de formatos aceitos:
+- Arroz: 2
+- Feijão carioca x3
+Azeite
+Leite integral 1`;
+
 export default function ShoppingListPasteModal({
   isOpen,
   onClose,
@@ -24,32 +54,14 @@ export default function ShoppingListPasteModal({
   availableGenerics,
 }: ShoppingListPasteModalProps) {
   const [text, setText] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
   const [matches, setMatches] = useState<MatchResult[]>([]);
-  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [editedMatches, setEditedMatches] = useState<MatchResult[]>([]);
+  const [step, setStep] = useState<'input' | 'review'>('input');
 
-  const parsedLines = useMemo(() => {
-    return text
-      .split('\n')
-      .map(line => line.trim())
-      .filter(Boolean)
-      .map(line => {
-        let clean = line.replace(/[\u{1F300}-\u{1F9FF}]|[-•▪︎]/gu, '').trim();
-        const qtyMatch = clean.match(/:\s*(\d+)/) || clean.match(/\s+(\d+)\s*$/);
-        const quantity = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
-        const pastedName = clean
-          .replace(/:\s*\d+.*$/, '')
-          .replace(/\s+\d+\s*$/, '')
-          .trim();
+  const parsedLines = useMemo(() => parseListText(text), [text]);
 
-        return { original: line, pastedName, quantity };
-      });
-  }, [text]);
-
-  const processPaste = () => {
+  const runMatching = () => {
     if (parsedLines.length === 0) return;
-
-    setIsProcessing(true);
 
     const results: MatchResult[] = parsedLines.map(({ pastedName, quantity }) => {
       if (!pastedName) return { pastedName: '', matchedGeneric: null, quantity, similarity: 0 };
@@ -57,11 +69,11 @@ export default function ShoppingListPasteModal({
       let bestScore = 0;
       let bestMatch: string | null = null;
 
-      availableGenerics.forEach(gen => {
-        const score = calculateSimilarity(pastedName, gen);
+      availableGenerics.forEach(generic => {
+        const score = calculateSimilarity(pastedName, generic);
         if (score > bestScore) {
           bestScore = score;
-          bestMatch = gen;
+          bestMatch = generic;
         }
       });
 
@@ -73,113 +85,203 @@ export default function ShoppingListPasteModal({
       };
     });
 
-    const hasUncertain = results.some(r => r.similarity < 90 && r.similarity >= 55);
+    const needsReview = results.some(
+      result => result.similarity < 90 && result.similarity >= 55
+    );
 
-    if (!hasUncertain) {
-      // All good confidence → add immediately using matched generic
+    if (!needsReview) {
       const itemsToAdd = results
-        .filter(r => r.matchedGeneric)
-        .map(r => ({ genericName: r.matchedGeneric!, quantity: r.quantity }));
-
+        .filter(result => result.matchedGeneric)
+        .map(result => ({ genericName: result.matchedGeneric!, quantity: result.quantity }));
       onConfirmAdd(itemsToAdd);
       resetModal();
     } else {
       setMatches(results);
-      setShowConfirmation(true);
+      setEditedMatches(results.map(result => ({ ...result })));
+      setStep('review');
     }
-
-    setIsProcessing(false);
   };
 
-  const handleConfirmAll = () => {
-    const itemsToAdd = matches
-      .filter(r => r.matchedGeneric)
-      .map(r => ({ genericName: r.matchedGeneric!, quantity: r.quantity }));
+  const updateMatchedGeneric = (index: number, value: string | null) => {
+    setEditedMatches(prev =>
+      prev.map((match, matchIndex) =>
+        matchIndex === index ? { ...match, matchedGeneric: value } : match
+      )
+    );
+  };
 
+  const handleConfirm = () => {
+    const itemsToAdd = editedMatches
+      .filter(result => result.matchedGeneric)
+      .map(result => ({ genericName: result.matchedGeneric!, quantity: result.quantity }));
     onConfirmAdd(itemsToAdd);
     resetModal();
   };
 
   const resetModal = () => {
-    setShowConfirmation(false);
-    setMatches([]);
     setText('');
+    setMatches([]);
+    setEditedMatches([]);
+    setStep('input');
     onClose();
   };
 
   if (!isOpen) return null;
 
+  const confirmedCount = editedMatches.filter(result => result.matchedGeneric).length;
+  const skippedCount = editedMatches.filter(result => !result.matchedGeneric).length;
+
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-lg overflow-hidden">
-        {!showConfirmation ? (
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
+      onClick={event => event.target === event.currentTarget && resetModal()}
+    >
+      <div className="bg-zinc-900 border border-zinc-700/80 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg flex flex-col max-h-[92vh] shadow-2xl shadow-black/60">
+
+        {/* Header */}
+        <div className="flex items-start justify-between p-6 pb-4">
+          <div>
+            <h2 className="text-base font-semibold text-white tracking-tight">
+              {step === 'input' ? 'Colar lista de compras' : 'Confirmar itens'}
+            </h2>
+            <p className="text-sm text-zinc-500 mt-0.5">
+              {step === 'input'
+                ? 'Cole sua lista em texto — um item por linha'
+                : `${confirmedCount} encontrado${confirmedCount !== 1 ? 's' : ''}${skippedCount > 0 ? ` · ${skippedCount} sem correspondência` : ''}`}
+            </p>
+          </div>
+          <button
+            onClick={resetModal}
+            className="text-zinc-600 hover:text-white transition-colors cursor-pointer text-xl leading-none p-1 -mr-1 -mt-1"
+            aria-label="Fechar"
+          >
+            ×
+          </button>
+        </div>
+
+        {step === 'input' ? (
           <>
-            <div className="p-6">
-              <h2 className="text-xl font-medium mb-2">Colar lista de compras</h2>
-              <p className="text-sm text-zinc-500 mb-4">
-                Itens com boa correspondência serão adicionados automaticamente.
-              </p>
+            <div className="px-6 pb-4 flex-1 overflow-hidden flex flex-col min-h-0">
               <textarea
                 value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="- Molho de tomate: 1\nArroz: 2\nFeijão 1"
-                className="w-full h-64 bg-zinc-950 border border-zinc-700 rounded-xl p-4 text-white font-mono text-sm resize-y focus:outline-none focus:border-emerald-500"
+                onChange={event => setText(event.target.value)}
+                placeholder={PLACEHOLDER}
+                autoFocus
+                className="w-full flex-1 min-h-[200px] bg-zinc-950 border border-zinc-700/80 rounded-xl p-4 text-zinc-200 font-mono text-sm resize-none focus:outline-none focus:border-emerald-500/60 placeholder:text-zinc-700 transition-colors"
               />
+              {parsedLines.length > 0 && (
+                <p className="text-xs text-zinc-600 mt-2 tabular-nums">
+                  {parsedLines.length} {parsedLines.length === 1 ? 'linha detectada' : 'linhas detectadas'}
+                </p>
+              )}
             </div>
 
-            <div className="border-t border-zinc-700 p-4 flex gap-3">
-              <button onClick={onClose} className="flex-1 py-3 text-zinc-400 hover:text-white font-medium">
+            <div className="p-4 pt-0 border-t border-zinc-800 flex gap-2 mt-2">
+              <button
+                onClick={resetModal}
+                className="flex-1 py-2.5 text-sm text-zinc-500 hover:text-zinc-300 font-medium transition-colors cursor-pointer"
+              >
                 Cancelar
               </button>
               <button
-                onClick={processPaste}
-                disabled={isProcessing || parsedLines.length === 0}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-black font-medium py-3 rounded-xl transition-colors"
+                onClick={runMatching}
+                disabled={parsedLines.length === 0}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-black font-semibold py-2.5 rounded-xl transition-colors cursor-pointer text-sm"
               >
-                {isProcessing ? 'Processando...' : `Processar ${parsedLines.length} itens`}
+                Processar {parsedLines.length > 0 ? `${parsedLines.length} itens` : ''}
               </button>
             </div>
           </>
         ) : (
-          <div className="p-6">
-            <h2 className="text-xl font-medium mb-4">Confirmação de correspondências</h2>
-            <div className="max-h-96 overflow-y-auto space-y-4 mb-6">
-              {matches.map((match, idx) => (
-                <div key={idx} className="bg-zinc-800 p-4 rounded-lg">
-                  <div className="text-sm">
-                    <span className="text-zinc-400">Digitado:</span> {match.pastedName}
-                  </div>
-                  {match.matchedGeneric ? (
-                    <div className="text-emerald-400 text-sm mt-1">
-                      ✓ Corresponde a: <strong>{match.matchedGeneric}</strong> ({match.similarity}%)
+          <>
+            <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-2 min-h-0">
+              {matches.map((match, index) => {
+                const edited = editedMatches[index];
+                const isSkipped = !edited.matchedGeneric;
+                const isLowConfidence = match.similarity < 90 && match.similarity >= 55;
+
+                return (
+                  <div
+                    key={index}
+                    className={`rounded-lg border px-4 py-3 transition-colors ${
+                      isSkipped
+                        ? 'border-zinc-800 bg-zinc-800/20'
+                        : isLowConfidence
+                        ? 'border-amber-500/20 bg-amber-500/5'
+                        : 'border-emerald-500/20 bg-emerald-500/5'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-zinc-500 mb-1 truncate">
+                          "{match.pastedName}"
+                          <span className="text-zinc-700 ml-1.5">
+                            × {match.quantity}
+                          </span>
+                        </p>
+
+                        {isSkipped ? (
+                          <p className="text-sm text-zinc-600 italic">
+                            Sem correspondência — será ignorado
+                          </p>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                              isLowConfidence
+                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            }`}>
+                              {match.similarity}%
+                            </span>
+                            <span className="text-sm text-white font-medium truncate">
+                              {edited.matchedGeneric}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quick actions */}
+                      <div className="flex gap-1.5 shrink-0">
+                        {!isSkipped && (
+                          <button
+                            onClick={() => updateMatchedGeneric(index, null)}
+                            className="text-xs px-2 py-1 rounded border border-zinc-700 text-zinc-500 hover:border-red-500/50 hover:text-red-400 transition-colors cursor-pointer"
+                            title="Ignorar este item"
+                          >
+                            ignorar
+                          </button>
+                        )}
+                        {isSkipped && match.matchedGeneric && (
+                          <button
+                            onClick={() => updateMatchedGeneric(index, match.matchedGeneric)}
+                            className="text-xs px-2 py-1 rounded border border-zinc-700 text-zinc-500 hover:border-emerald-500/50 hover:text-emerald-400 transition-colors cursor-pointer"
+                          >
+                            restaurar
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="text-red-400 text-sm mt-1">
-                      ✗ Sem correspondência boa
-                    </div>
-                  )}
-                  <div className="text-xs text-zinc-500 mt-2">
-                    Quantidade: {match.quantity}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            <div className="flex gap-3">
+            <div className="p-4 pt-3 border-t border-zinc-800 flex gap-2">
               <button
-                onClick={resetModal}
-                className="flex-1 py-3 text-zinc-400 hover:text-white font-medium transition-colors"
+                onClick={() => setStep('input')}
+                className="flex-1 py-2.5 text-sm text-zinc-500 hover:text-zinc-300 font-medium transition-colors cursor-pointer"
               >
-                Cancelar
+                ← Voltar
               </button>
               <button
-                onClick={handleConfirmAll}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-black font-medium py-3 rounded-xl transition-colors"
+                onClick={handleConfirm}
+                disabled={confirmedCount === 0}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-black font-semibold py-2.5 rounded-xl transition-colors cursor-pointer text-sm"
               >
-                Adicionar todos os itens encontrados
+                Adicionar {confirmedCount > 0 ? `${confirmedCount} ${confirmedCount === 1 ? 'item' : 'itens'}` : ''}
               </button>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>

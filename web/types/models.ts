@@ -6,6 +6,8 @@ export interface ShoppingListItem {
   quantity: number;
   preferredUnit?: string;
   preferredStdSize?: number;
+  pinnedPrice?: number;
+  pinnedStore?: string;
   notes?: string;
 }
 
@@ -65,8 +67,9 @@ export interface GenericResponse {
   groups?: Group[];
   group_mode?: string | null;
   sort_by: string;
-  _meta: any;
+  _meta: unknown;
 }
 
-// Re-export for convenience
+export type StoreKey = 'prezunic' | 'zonasul' | 'hortifruti';
+export type PricingStrategy = 'none' | 'price' | 'price_per_unit';
 export type UnitSymbol = 'g' | 'kg' | 'ml' | 'L' | 'un';

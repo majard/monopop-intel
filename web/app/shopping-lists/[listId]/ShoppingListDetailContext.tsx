@@ -7,17 +7,16 @@ import React, {
     useCallback,
     useEffect,
     useRef,
-    useState
+    useState,
 } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useShoppingLists, ShoppingListItem } from '@/hooks/useShoppingLists';
-import { GenericResponse, GenericProduct, Group } from '@/types/models';
+import { GenericResponse, GenericProduct } from '@/types/models';
 import { normalizeUnit } from '@/utils/normalizeUnit';
-
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-// ─── Shape ──────────────────────────────────────────────────────────────────
+// ─── Shape ───────────────────────────────────────────────────────────────────
 
 interface ShoppingListDetailContextValue {
     listId: string;
@@ -32,6 +31,7 @@ interface ShoppingListDetailContextValue {
     mainProduct?: GenericProduct;
     list: ReturnType<typeof useShoppingLists>['lists'][0] | undefined;
     currentOpenItem: ShoppingListItem | undefined;
+    isReady: boolean;
     openItem: (genericName: string, productId?: number) => void;
     closeItem: () => void;
     pinVariant: (productId: number, unit?: string, stdSize?: number, price?: number, store?: string) => void;
@@ -39,8 +39,10 @@ interface ShoppingListDetailContextValue {
     updateItem: ReturnType<typeof useShoppingLists>['updateItem'];
     removeItem: ReturnType<typeof useShoppingLists>['removeItem'];
     addItem: ReturnType<typeof useShoppingLists>['addItem'];
-    isReady: boolean;
+    // For the export modal — always fetches without store filter so all stores are present
+    fetchGenericForExport: (term: string) => Promise<GenericResponse | null>;
 }
+
 // ─── Context ─────────────────────────────────────────────────────────────────
 
 const ShoppingListDetailContext =
@@ -49,9 +51,7 @@ const ShoppingListDetailContext =
 export function useShoppingListDetail() {
     const ctx = useContext(ShoppingListDetailContext);
     if (!ctx)
-        throw new Error(
-            'useShoppingListDetail must be used within ShoppingListDetailProvider'
-        );
+        throw new Error('useShoppingListDetail must be used within ShoppingListDetailProvider');
     return ctx;
 }
 
@@ -60,6 +60,7 @@ export function useShoppingListDetail() {
 interface ProviderProps {
     listId: string;
     availableGenerics: string[];
+    // Initial values from SSR — context takes over via useSearchParams after hydration
     initialGeneric: string;
     initialProductId?: number;
     initialGroup: string;
@@ -78,15 +79,18 @@ export function ShoppingListDetailProvider({
     initialStore,
     children,
 }: ProviderProps) {
-    // URL params are the source of truth for panel state — initial values
-    // come from the server component (SSR), then the client takes over via router
-    const generic = initialGeneric;
-    const productId = initialProductId;
-    const currentGroup = initialGroup;
-    const currentSort = initialSort;
-    const currentStore = initialStore;
     const router = useRouter();
     const searchParams = useSearchParams();
+
+    // useSearchParams is the live source of truth after hydration.
+    // Initial* props seed the SSR render; after that, URL changes are reactive.
+    const generic = searchParams.get('generic') ?? initialGeneric;
+    const productId = searchParams.get('productId')
+        ? parseInt(searchParams.get('productId')!, 10)
+        : initialProductId;
+    const currentGroup = searchParams.get('group') ?? initialGroup;
+    const currentSort = searchParams.get('sort_by') ?? initialSort;
+    const currentStore = searchParams.get('store') ?? initialStore;
 
     const {
         lists,
@@ -98,8 +102,9 @@ export function ShoppingListDetailProvider({
         isReady,
     } = useShoppingLists();
 
-    const list = lists.find((l) => l.id === listId);
+    const list = lists.find(shoppingList => shoppingList.id === listId);
 
+    // ─── Generic data fetching with in-memory cache ───────────────────────────
 
     const genericCache = useRef<Map<string, GenericResponse>>(new Map());
     const [data, setData] = useState<GenericResponse | null>(null);
@@ -111,26 +116,24 @@ export function ShoppingListDetailProvider({
         sort: string,
         store: string
     ): Promise<GenericResponse | null> => {
-        const key = `${term}::${group}::${sort}::${store}`;
-        if (genericCache.current.has(key)) return genericCache.current.get(key)!;
+        const cacheKey = `${term}::${group}::${sort}::${store}`;
+        if (genericCache.current.has(cacheKey)) return genericCache.current.get(cacheKey)!;
 
-        const params = new URLSearchParams({ group, sort_by: sort });
-        if (store) params.set('store', store);
+        const queryParams = new URLSearchParams({ group, sort_by: sort });
+        if (store) queryParams.set('store', store);
 
         try {
-            const res = await fetch(
-                `${API}/generics/${encodeURIComponent(term)}?${params}`
-            );
-            if (!res.ok) return null;
-            const json: GenericResponse = await res.json();
-            genericCache.current.set(key, json);
+            const response = await fetch(`${API}/generics/${encodeURIComponent(term)}?${queryParams}`);
+            if (!response.ok) return null;
+            const json: GenericResponse = await response.json();
+            genericCache.current.set(cacheKey, json);
             return json;
         } catch {
             return null;
         }
     }, []);
 
-    // prefetch all list items once list is ready
+    // Prefetch all list items once the list is available — makes panel opening instant
     useEffect(() => {
         if (!list) return;
         list.items.forEach(item => {
@@ -138,7 +141,7 @@ export function ShoppingListDetailProvider({
         });
     }, [list?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // fetch when URL params change
+    // Fetch the open generic whenever URL params change
     useEffect(() => {
         if (!generic) {
             setData(null);
@@ -151,11 +154,26 @@ export function ShoppingListDetailProvider({
         });
     }, [generic, currentGroup, currentSort, currentStore, fetchGeneric]);
 
+    // Export fetch always uses no store filter so all stores are present in one response
+    const fetchGenericForExport = useCallback(
+        (term: string) => fetchGeneric(term, 'brand_size', 'price', ''),
+        [fetchGeneric]
+    );
+
+    // ─── Derived state ────────────────────────────────────────────────────────
+
     const currentOpenItem = useMemo(() => {
         if (!list || !generic) return undefined;
-        return list.items.find((item) => item.genericName === generic);
+        return list.items.find(item => item.genericName === generic);
     }, [list, generic]);
 
+    const allProducts: GenericProduct[] = data?.groups
+        ? data.groups.flatMap(group => group.variants)
+        : data?.products ?? [];
+
+    const mainProduct = allProducts.find(product => product.product_id === productId);
+
+    // ─── Actions ─────────────────────────────────────────────────────────────
 
     const openItem = useCallback(
         (genericName: string, pinnedProductId?: number) => {
@@ -166,11 +184,7 @@ export function ShoppingListDetailProvider({
             } else {
                 params.delete('productId');
             }
-            // Preserve current filter state from URL (not from props,
-            // because the user may have changed them via panel Links)
-            router.replace(`/shopping-lists/${listId}?${params.toString()}`, {
-                scroll: false,
-            });
+            router.replace(`/shopping-lists/${listId}?${params.toString()}`, { scroll: false });
         },
         [searchParams, listId, router]
     );
@@ -179,23 +193,14 @@ export function ShoppingListDetailProvider({
         const params = new URLSearchParams(searchParams.toString());
         params.delete('generic');
         params.delete('productId');
-        router.replace(`/shopping-lists/${listId}?${params.toString()}`, {
-            scroll: false,
-        });
+        router.replace(`/shopping-lists/${listId}?${params.toString()}`, { scroll: false });
     }, [searchParams, listId, router]);
 
     const pinVariant = useCallback(
-        (
-            variantProductId: number,
-            unit?: string,
-            stdSize?: number,
-            price?: number,
-            store?: string
-        ) => {
+        (variantProductId: number, unit?: string, stdSize?: number, price?: number, store?: string) => {
             if (!currentOpenItem) return;
-            const normalized = unit && stdSize
-                ? normalizeUnit(stdSize, unit)
-                : null;
+
+            const normalized = unit && stdSize ? normalizeUnit(stdSize, unit) : null;
 
             pinVariantToItem(
                 listId,
@@ -206,8 +211,7 @@ export function ShoppingListDetailProvider({
                 price,
                 store
             );
-            
-            // Sync the URL to reflect the new pinned product ID
+
             const params = new URLSearchParams(searchParams.toString());
             params.set('productId', variantProductId.toString());
             router.replace(`/shopping-lists/${listId}?${params.toString()}`, { scroll: false });
@@ -216,17 +220,11 @@ export function ShoppingListDetailProvider({
     );
 
     const unpinItem = useCallback(
-        (itemId: string) => {
-            unpinItemInList(listId, itemId);
-        },
+        (itemId: string) => unpinItemInList(listId, itemId),
         [listId, unpinItemInList]
     );
 
-    const allProducts = data?.groups
-        ? data.groups.flatMap(g => g.variants)
-        : data?.products || [];
-
-    const mainProduct = allProducts.find(p => p.product_id === productId);
+    // ─── Context value ────────────────────────────────────────────────────────
 
     const value = useMemo<ShoppingListDetailContextValue>(
         () => ({
@@ -242,6 +240,7 @@ export function ShoppingListDetailProvider({
             mainProduct,
             list,
             currentOpenItem,
+            isReady,
             openItem,
             closeItem,
             pinVariant,
@@ -249,14 +248,14 @@ export function ShoppingListDetailProvider({
             updateItem,
             removeItem,
             addItem,
-            isReady,
+            fetchGenericForExport,
         }),
         [
             listId, availableGenerics, generic, productId,
             currentGroup, currentSort, currentStore,
             data, isFetchingPanel, mainProduct, list, currentOpenItem,
-            openItem, closeItem, pinVariant, unpinItem,
-            updateItem, removeItem, addItem, isReady,
+            isReady, openItem, closeItem, pinVariant, unpinItem,
+            updateItem, removeItem, addItem, fetchGenericForExport,
         ]
     );
 

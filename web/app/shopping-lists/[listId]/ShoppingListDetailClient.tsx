@@ -2,264 +2,268 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import ProductDetailPanel from '../../../components/ProductDetailPanel';
-import ShoppingListPasteModal from '../../../components/ui/ShoppingListPasteModal';
+import ProductDetailPanel from '@/components/ProductDetailPanel';
+import ShoppingListPasteModal from '@/components/ui/ShoppingListPasteModal';
+import ShoppingListExportModal from '@/components/ui/ShoppingListExportModal';
 import { useShoppingListDetail } from './ShoppingListDetailContext';
-import { ShoppingListItem } from '@/hooks/useShoppingLists';
-import { buildShoppingListExport } from '@/utils/shoppingListExport';
 import { normalizeUnit } from '@/utils/normalizeUnit';
+import type { ShoppingListItem } from '@/types/models';
 
 export default function ShoppingListDetailClient() {
-    const router = useRouter();
-    const {
-        listId,
-        availableGenerics,
-        data,
-        generic,
-        list,
-        openItem,
-        unpinItem,
-        updateItem,
-        removeItem,
-        addItem,
-        isReady,
-    } = useShoppingListDetail();
+  const router = useRouter();
+  const {
+    listId,
+    availableGenerics,
+    data,
+    generic,
+    list,
+    isReady,
+    openItem,
+    unpinItem,
+    updateItem,
+    removeItem,
+    addItem,
+    fetchGenericForExport,
+  } = useShoppingListDetail();
 
-    const [showPasteModal, setShowPasteModal] = useState(false);
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
-    if (!isReady) {
-        return (
-            <main className="h-[calc(100vh-68px)] bg-zinc-950 text-zinc-100 font-mono p-6 flex items-center justify-center">
-                <span className="text-zinc-500 text-sm animate-pulse">Carregando lista...</span>
-            </main>
-        );
-    }
-
-    if (!list) {
-        return (
-            <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-6">
-                <div className="max-w-2xl mx-auto text-center py-20">
-                    <p className="text-xl text-zinc-400">Lista não encontrada.</p>
-                    <button
-                        onClick={() => router.push('/shopping-lists')}
-                        className="mt-6 text-emerald-400 hover:text-emerald-300 underline"
-                    >
-                        Voltar para Listas de Compras
-                    </button>
-                </div>
-            </main>
-        );
-    }
-
-    const handleAddFromPaste = (
-        newItems: Array<{ genericName: string; quantity: number }>
-    ) => {
-        newItems.forEach(({ genericName, quantity }) => {
-            addItem(listId, { genericName, quantity: quantity || 1 });
-        });
-        setShowPasteModal(false);
-    };
-
-    const calculateTotal = () =>
-        list.items.reduce((total, item) => {
-            return total + item.quantity * (item.pinnedPrice ?? 0);
-        }, 0);
-
-    const handleExport = () => {
-        const { jsonString, fileName } = buildShoppingListExport(list);
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    };
-
-    const isPanelOpen = !!generic && !!data;
-
+  if (!isReady) {
     return (
-        <main className="h-[calc(100vh-68px)] bg-zinc-950 text-zinc-100 font-mono p-6 flex flex-col overflow-hidden">
-            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 flex-1 min-h-0 w-full">
-                {/* Left: Shopping List */}
-                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <div className="flex items-center justify-between mb-6 flex-shrink-0">
-                        <div className="flex items-center gap-4">
-                            <button
-                                onClick={() => router.push('/shopping-lists')}
-                                className="text-zinc-400 hover:text-zinc-200"
-                            >
-                                ←
-                            </button>
-                            <div>
-                                <h1 className="text-2xl font-bold text-white">{list.name}</h1>
-                                <p className="text-zinc-500 text-sm">
-                                    {list.items.length} item{list.items.length !== 1 ? 's' : ''} •
-                                    atualizado {new Date(list.updatedAt).toLocaleDateString('pt-BR')}
-                                </p>
-                            </div>
-                        </div>
+      <main className="h-[calc(100vh-68px)] bg-zinc-950 text-zinc-100 font-mono flex items-center justify-center">
+        <span className="text-zinc-600 text-sm animate-pulse">carregando...</span>
+      </main>
+    );
+  }
 
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={() => setShowPasteModal(true)}
-                                className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-5 py-2 rounded-lg font-medium transition-colors"
-                            >
-                                📋 Colar lista
-                            </button>
-                            <button
-                                onClick={handleExport}
-                                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-black px-5 py-2 rounded-lg font-medium transition-colors"
-                            >
-                                Exportar
-                            </button>
-                        </div>
-                    </div>
+  if (!list) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-6">
+        <div className="max-w-2xl mx-auto text-center py-20">
+          <p className="text-xl text-zinc-500">Lista não encontrada.</p>
+          <button
+            onClick={() => router.push('/shopping-lists')}
+            className="mt-6 text-emerald-400 hover:text-emerald-300 underline cursor-pointer transition-colors"
+          >
+            ← Voltar para listas
+          </button>
+        </div>
+      </main>
+    );
+  }
 
-                    {list.items.length === 0 ? (
-                        <div className="flex-1 min-h-0 bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center flex flex-col justify-center">
-                            <p className="text-zinc-400">Esta lista ainda está vazia.</p>
-                            <p className="text-sm text-zinc-500 mt-2">
-                                Use "Colar lista" ou adicione itens das páginas de genéricos.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="flex-1 overflow-y-auto scrollbar-subtle space-y-3 pr-2 min-h-0">
-                            {list.items.map((item: ShoppingListItem) => {
-                                const isPinned = !!item.productId;
-                                return (
-                                    <div
-                                        key={item.id}
-                                        onClick={() => openItem(item.genericName, item.productId)}
-                                        className="bg-zinc-900 border border-zinc-800 hover:border-emerald-500 rounded-xl p-5 flex items-center gap-4 group cursor-pointer transition-all"
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <div className="font-medium text-white group-hover:text-emerald-400 transition-colors flex items-center gap-2">
-                                                {item.genericName}
-                                                {isPinned && (
-                                                    <span
-                                                        className="text-[10px] px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded cursor-pointer hover:bg-emerald-500/20"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            unpinItem(item.id);
-                                                        }}
-                                                    >
-                                                        fixado
-                                                    </span>
-                                                )}
-                                            </div>
+  const handleAddFromPaste = (newItems: Array<{ genericName: string; quantity: number }>) => {
+    newItems.forEach(({ genericName, quantity }) => {
+      addItem(listId, { genericName, quantity: quantity || 1 });
+    });
+    setShowPasteModal(false);
+  };
 
-                                            {isPinned && item.preferredStdSize && item.preferredUnit && (
-                                                <div className="text-zinc-500 text-xs mt-0.5">
-                                                    {normalizeUnit(item.preferredStdSize, item.preferredUnit).display}
-                                                </div>
-                                            )}
+  const calculateTotal = () =>
+    list.items.reduce((total, item) => total + item.quantity * (item.pinnedPrice ?? 0), 0);
 
-                                            {isPinned ? (
-                                                <div className="text-emerald-400 text-sm mt-1 font-medium">
-                                                    R$ {item.pinnedPrice?.toFixed(2) || '—'}
-                                                </div>
-                                            ) : (
-                                                <div className="mt-1">
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        placeholder="R$ 0,00"
-                                                        value={item.pinnedPrice ?? ''}
-                                                        onChange={(e) =>
-                                                            updateItem(listId, item.id, {
-                                                                pinnedPrice: e.target.value
-                                                                    ? parseFloat(e.target.value)
-                                                                    : undefined,
-                                                            })
-                                                        }
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        className="bg-zinc-800 border border-zinc-700 rounded px-3 py-1 text-emerald-400 text-sm w-28 focus:outline-none focus:border-emerald-500"
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
+  const isPanelOpen = !!generic && !!data;
 
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex items-center border border-zinc-700 rounded">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        updateItem(listId, item.id, {
-                                                            quantity: Math.max(1, item.quantity - 1),
-                                                        });
-                                                    }}
-                                                    className="px-3 py-1 text-zinc-400 hover:text-white"
-                                                >
-                                                    −
-                                                </button>
-                                                <input
-                                                    type="number"
-                                                    value={item.quantity}
-                                                    onChange={(e) =>
-                                                        updateItem(listId, item.id, {
-                                                            quantity: parseInt(e.target.value) || 1,
-                                                        })
-                                                    }
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="w-12 bg-transparent text-center text-sm focus:outline-none"
-                                                    min="1"
-                                                />
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        updateItem(listId, item.id, {
-                                                            quantity: item.quantity + 1,
-                                                        });
-                                                    }}
-                                                    className="px-3 py-1 text-zinc-400 hover:text-white"
-                                                >
-                                                    +
-                                                </button>
-                                            </div>
+  return (
+    <main className="h-[calc(100vh-68px)] bg-zinc-950 text-zinc-100 font-mono p-6 flex flex-col overflow-hidden">
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 flex-1 min-h-0 w-full">
 
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    removeItem(listId, item.id);
-                                                }}
-                                                className="text-red-400 hover:text-red-500 text-xl leading-none px-2"
-                                            >
-                                                ×
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
+        {/* Left: Shopping List */}
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
-                    {list.items.length > 0 && (
-                        <div className="flex-shrink-0 pt-6 border-t border-zinc-800 flex justify-between items-baseline text-sm">
-                            <span className="text-zinc-400">Total da lista</span>
-                            <span className="text-emerald-400 font-bold text-xl">
-                                R$ {calculateTotal().toFixed(2)}
-                            </span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Right: Product Detail Panel */}
-                {isPanelOpen && (
-                    <div className="flex-1 lg:w-7/12 lg:border-l lg:border-zinc-800 lg:pl-6 flex flex-col min-h-0 overflow-hidden scrollbar-subtle">
-                        <ProductDetailPanel />
-                    </div>
-                )}
+          {/* List header */}
+          <div className="flex items-center justify-between mb-6 flex-shrink-0">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.push('/shopping-lists')}
+                className="text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+                aria-label="Voltar para listas"
+              >
+                ←
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold text-white leading-tight">{list.name}</h1>
+                <p className="text-zinc-600 text-sm mt-0.5">
+                  {list.items.length} {list.items.length === 1 ? 'item' : 'itens'}
+                  <span className="text-zinc-700 mx-1.5">·</span>
+                  atualizado {new Date(list.updatedAt).toLocaleDateString('pt-BR')}
+                </p>
+              </div>
             </div>
 
-            <ShoppingListPasteModal
-                isOpen={showPasteModal}
-                onClose={() => setShowPasteModal(false)}
-                onConfirmAdd={handleAddFromPaste}
-                availableGenerics={availableGenerics}
-            />
-        </main>
-    );
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowPasteModal(true)}
+                className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-600 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer"
+              >
+                📋 Colar lista
+              </button>
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-black px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
+              >
+                ↓ Exportar
+              </button>
+            </div>
+          </div>
+
+          {/* Empty state */}
+          {list.items.length === 0 ? (
+            <div className="flex-1 min-h-0 border border-dashed border-zinc-800 rounded-xl flex flex-col items-center justify-center gap-3 text-center p-12">
+              <p className="text-zinc-500">Esta lista ainda está vazia.</p>
+              <p className="text-sm text-zinc-700">
+                Cole uma lista em texto ou adicione itens a partir das páginas de genéricos.
+              </p>
+              <button
+                onClick={() => setShowPasteModal(true)}
+                className="mt-2 text-sm text-emerald-500 hover:text-emerald-400 underline cursor-pointer transition-colors"
+              >
+                Colar lista agora →
+              </button>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto scrollbar-subtle space-y-2 pr-1 min-h-0">
+              {list.items.map((item: ShoppingListItem) => {
+                const isPinned = !!item.productId;
+                const sizeDisplay = item.preferredStdSize && item.preferredUnit
+                  ? normalizeUnit(item.preferredStdSize, item.preferredUnit).display
+                  : null;
+
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => openItem(item.genericName, item.productId)}
+                    className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-4 flex items-center gap-4 group cursor-pointer transition-all"
+                  >
+                    <div className="flex-1 min-w-0">
+                      {/* Item name + pinned badge */}
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-zinc-200 group-hover:text-white transition-colors truncate">
+                          {item.genericName}
+                        </span>
+                        {isPinned && (
+                          <button
+                            onClick={event => {
+                              event.stopPropagation();
+                              unpinItem(item.id);
+                            }}
+                            className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all cursor-pointer flex-shrink-0"
+                            title="Clique para desafixar"
+                          >
+                            fixado
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Size info */}
+                      {sizeDisplay && (
+                        <p className="text-zinc-600 text-xs mt-0.5">{sizeDisplay}</p>
+                      )}
+
+                      {/* Price */}
+                      {isPinned ? (
+                        <p className="text-emerald-400 text-sm mt-1 font-medium tabular-nums">
+                          {item.pinnedPrice != null ? `R$ ${item.pinnedPrice.toFixed(2)}` : '—'}
+                        </p>
+                      ) : (
+                        <div className="mt-1.5" onClick={event => event.stopPropagation()}>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0,00"
+                            value={item.pinnedPrice ?? ''}
+                            onChange={event =>
+                              updateItem(listId, item.id, {
+                                pinnedPrice: event.target.value
+                                  ? parseFloat(event.target.value)
+                                  : undefined,
+                              })
+                            }
+                            className="bg-zinc-800 border border-zinc-700 focus:border-zinc-500 rounded-lg px-3 py-1 text-emerald-400 placeholder:text-zinc-700 text-sm w-28 focus:outline-none transition-colors tabular-nums"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quantity controls + remove */}
+                    <div className="flex items-center gap-3 shrink-0" onClick={event => event.stopPropagation()}>
+                      <div className="flex items-center border border-zinc-700 rounded-lg overflow-hidden">
+                        <button
+                          onClick={() => updateItem(listId, item.id, { quantity: Math.max(1, item.quantity - 1) })}
+                          className="px-3 py-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={event =>
+                            updateItem(listId, item.id, { quantity: parseInt(event.target.value) || 1 })
+                          }
+                          className="w-10 bg-transparent text-center text-sm focus:outline-none text-zinc-300 tabular-nums"
+                          min="1"
+                        />
+                        <button
+                          onClick={() => updateItem(listId, item.id, { quantity: item.quantity + 1 })}
+                          className="px-3 py-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => removeItem(listId, item.id)}
+                        className="text-zinc-700 hover:text-red-400 transition-colors cursor-pointer p-1 rounded"
+                        title="Remover item"
+                        aria-label={`Remover ${item.genericName}`}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <path d="M2 4h10M5 4V3a1 1 0 011-1h2a1 1 0 011 1v1M9 4v7a1 1 0 01-1 1H6a1 1 0 01-1-1V4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Total */}
+          {list.items.length > 0 && (
+            <div className="flex-shrink-0 pt-4 mt-2 border-t border-zinc-800 flex justify-between items-baseline">
+              <span className="text-zinc-500 text-sm">Total estimado</span>
+              <span className="text-emerald-400 font-bold text-lg tabular-nums">
+                R$ {calculateTotal().toFixed(2)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Right: Product Detail Panel */}
+        {isPanelOpen && (
+          <div className="flex-1 lg:max-w-[55%] lg:border-l lg:border-zinc-800 lg:pl-6 flex flex-col min-h-0 overflow-hidden">
+            <ProductDetailPanel />
+          </div>
+        )}
+      </div>
+
+      <ShoppingListPasteModal
+        isOpen={showPasteModal}
+        onClose={() => setShowPasteModal(false)}
+        onConfirmAdd={handleAddFromPaste}
+        availableGenerics={availableGenerics}
+      />
+
+      {showExportModal && (
+        <ShoppingListExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          list={list}
+          fetchGenericForExport={fetchGenericForExport}
+        />
+      )}
+    </main>
+  );
 }
