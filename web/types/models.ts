@@ -32,6 +32,7 @@ export interface GenericProduct {
   name: string;
   store: string;
   price: number | null;
+  list_price?: number | null;
   package_size: number | null;
   unit: string | null;
   parsed_brand: string | null;

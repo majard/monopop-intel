@@ -413,16 +413,18 @@ async def get_generics(
                 p.unit,
                 p.is_noise,
                 p.generic_name,
-                MAX(pp.price) as price,
-                bool_or(pp.available) as available
+                pp_latest.price,
+                pp_latest.list_price,
+                pp_latest.available
             FROM products p
-            LEFT JOIN price_points pp 
-                ON p.id = pp.product_id AND pp.scrape_date >= ${fresh_pos}
+            LEFT JOIN LATERAL (
+                SELECT price, list_price, available
+                FROM price_points
+                WHERE product_id = p.id AND scrape_date >= ${fresh_pos}
+                ORDER BY scrape_date DESC
+                LIMIT 1
+            ) pp_latest ON true
             WHERE {where_clause}
-            GROUP BY 
-                p.id, p.vtex_product_id, p.name, p.store, p.brand, p.ean, 
-                p.category, p.url, p.parsed_brand, p.package_size, p.unit, 
-                p.is_noise, p.generic_name
             """,
             *params,
         )
@@ -474,6 +476,9 @@ async def get_generics(
                 "url": r["url"],
                 "parsed_brand": r["parsed_brand"],
                 "price": price,
+                "list_price": float(r["list_price"])
+                if r["list_price"] is not None
+                else None,
                 "package_size": size,
                 "unit": unit,
                 "available": bool(r["available"])
@@ -577,6 +582,7 @@ async def get_generics(
                 "url": p.get("url"),
                 "parsed_brand": p.get("parsed_brand"),
                 "price": p["price"],
+                "list_price": p["list_price"],
                 "available": p["available"],
                 "price_per_unit": p["price_per_unit"],
                 "normalized_size": p["normalized_size"],
