@@ -113,7 +113,7 @@ export default function ShoppingListDetailClient() {
             <div className="flex-1 min-h-0 border border-dashed border-zinc-800 rounded-xl flex flex-col items-center justify-center gap-3 text-center p-12">
               <p className="text-zinc-500">Esta lista ainda está vazia.</p>
               <p className="text-sm text-zinc-700">
-                Cole uma lista em texto ou adicione itens a partir das páginas de genéricos.
+                Cole uma lista em texto ou adicione itens a partir das páginas de básicos.
               </p>
               <button
                 onClick={() => setShowPasteModal(true)}

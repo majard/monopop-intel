@@ -51,6 +51,12 @@ export default function RootLayout({
               >
                 básicos
               </Link>
+              <Link
+                href="/shopping-lists"
+                className="text-xs font-mono text-zinc-500 hover:text-emerald-400 transition-colors"
+              >
+                listas
+              </Link>
             </div>
           </div>
         </nav>

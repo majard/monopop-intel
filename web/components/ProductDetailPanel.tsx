@@ -47,8 +47,7 @@ export default function ProductDetailPanel() {
 
   const lastMainProduct = useRef<GenericProduct | undefined>(undefined);
   if (mainProduct) lastMainProduct.current = mainProduct;
-  const displayProduct = mainProduct ?? lastMainProduct.current;
-
+  const displayProduct = mainProduct ?? (currentOpenItem?.productId ? lastMainProduct.current : undefined);
   const isGrouped = !!data?.group_mode && !!data.groups?.length;
 
   const allProducts: GenericProduct[] = isGrouped
