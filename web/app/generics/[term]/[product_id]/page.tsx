@@ -434,6 +434,13 @@ export default async function GenericProductPage({
             <p className="text-zinc-600 text-sm">Nenhuma variação encontrada.</p>
           )}
         </div>
+
+        <p className="text-[11px] text-zinc-800 text-center mt-10">
+          Monopop Intel é gratuito e sem anúncios.{' '}
+          <Link href="/support" className="text-zinc-700 hover:text-zinc-500 underline transition-colors">
+            Apoiar o projeto →
+          </Link>
+        </p>
       </div >
     </main >
   );
