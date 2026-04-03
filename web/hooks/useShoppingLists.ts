@@ -73,7 +73,13 @@ export function useShoppingLists() {
     setLists(prev => prev.filter(list => list.id !== listId));
   }, []);
 
-  const addItem = useCallback((listId: string, item: Omit<ShoppingListItem, 'id'>) => {
+  const addItem = useCallback((listId: string, item: Omit<ShoppingListItem, 'id'>): string => {
+    // Return existing item id if generic already in list — let caller decide to pin/update
+    const existing = lists
+      .find(l => l.id === listId)
+      ?.items.find(i => i.genericName.toLowerCase() === item.genericName.toLowerCase());
+    if (existing) return existing.id;
+
     const newItem: ShoppingListItem = {
       ...item,
       id: `item-${Date.now()}-${Math.floor(Math.random() * 1000000)}`,
@@ -87,7 +93,7 @@ export function useShoppingLists() {
       )
     );
     return newItem.id;
-  }, []);
+  }, [lists]);
 
   const pinVariantToItem = useCallback((
     listId: string,

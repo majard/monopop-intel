@@ -46,6 +46,10 @@
             "category": "graos_massas"
         },
         {
+            "term": "macarrao instantaneo",
+            "category": "graos_massas"
+        },
+        {
             "term": "macarrao",
             "category": "graos_massas",
             "max_results": 130
@@ -887,10 +891,6 @@
         },
         {
             "term": "cereal",
-            "category": "padaria_cereais"
-        },
-        {
-            "term": "macarrao instantaneo",
             "category": "padaria_cereais"
         },
         {
