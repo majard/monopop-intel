@@ -4,6 +4,7 @@ import FilterSelect from "@/components/ui/FilterSelect";
 import AddToListButton from "@/components/ui/AddToListButton";
 import { STORES } from '@/constants/stores';
 import { GenericProduct, Group, GenericResponse } from "@/types/models";
+import { ShoppingListsProvider } from "@/hooks/useShoppingLists";
 
 
 const API = process.env.NEXT_PUBLIC_API_URL;
@@ -246,16 +247,18 @@ export default async function GenericProductPage({
               histórico de preços →
             </Link>
             <span className="text-zinc-800">·</span>
-            <AddToListButton
-              term={decodedTerm}
-              productId={mainProduct.product_id}
-              price={mainProduct.price}
-              store={mainProduct.store}
-              unit={mainProduct.unit}
-              stdSize={mainProduct.package_size ?? undefined}
-              className="text-sm text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer disabled:opacity-40"
-              label="+ adicionar à lista"
-            />
+            <ShoppingListsProvider>
+              <AddToListButton
+                term={decodedTerm}
+                productId={mainProduct.product_id}
+                price={mainProduct.price}
+                store={mainProduct.store}
+                unit={mainProduct.unit}
+                stdSize={mainProduct.package_size ?? undefined}
+                className="text-sm text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer disabled:opacity-40"
+                label="+ adicionar à lista"
+              />
+            </ShoppingListsProvider>
           </div>
         </div>
 

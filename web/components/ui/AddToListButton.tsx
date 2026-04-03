@@ -15,6 +15,7 @@ interface AddToListButtonProps {
   stdSize?: number | null;
   className?: string;
   label?: string;
+  forwardToList?: boolean;
 }
 
 export default function AddToListButton({
@@ -26,10 +27,12 @@ export default function AddToListButton({
   stdSize,
   className,
   label = '+ adicionar à lista',
+  forwardToList = true,
 }: AddToListButtonProps) {
   const router = useRouter();
   const { lists, createList, addItem, pinVariantToItem, isReady } = useShoppingLists();
   const [isOpen, setIsOpen] = useState(false);
+
 
   const applyToList = (listId: string) => {
     const targetList = lists.find(l => l.id === listId);
@@ -58,7 +61,9 @@ export default function AddToListButton({
     }
 
     setIsOpen(false);
-    router.push(`/shopping-lists/${listId}`);
+    if (forwardToList) {
+      router.push(`/shopping-lists/${listId}`);
+    }
   };
 
   const handleCreate = () => {
@@ -66,6 +71,10 @@ export default function AddToListButton({
     applyToList(listId);
   };
 
+  if (!isReady) {
+    return null;
+  }
+  
   return (
     <>
       <button
