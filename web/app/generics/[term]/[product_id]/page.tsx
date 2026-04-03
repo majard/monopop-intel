@@ -36,7 +36,7 @@ async function fetchGeneric(term: string, group?: string, sortBy?: string, store
   try {
     const res = await fetch(
       `${API}/generics/${encodeURIComponent(term)}?${params}`,
-      { cache: "no-store" }
+      { next: { revalidate: 14400 } }
     );
     if (!res.ok) return null;
     return res.json();

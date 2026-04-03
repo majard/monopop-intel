@@ -39,7 +39,7 @@ export function useShoppingLists() {
   }, []);
 
   useEffect(() => {
-    if (!isInitialized.current || lists.length === 0) return;
+    if (!isInitialized.current) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(lists));
     } catch (error) {
