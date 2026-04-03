@@ -45,9 +45,6 @@ export default async function ShoppingListDetailPage({
       availableGenerics={availableGenerics}
       initialGeneric={sp.generic ?? ''}
       initialProductId={sp.productId ? parseInt(sp.productId, 10) : undefined}
-      initialGroup={sp.group ?? 'brand_size'}
-      initialSort={sp.sort_by ?? 'price'}
-      initialStore={sp.store ?? ''}
     >
       <ShoppingListDetailClient />
     </ShoppingListDetailProvider>

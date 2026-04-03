@@ -60,12 +60,8 @@ export function useShoppingListDetail() {
 interface ProviderProps {
   listId: string;
   availableGenerics: string[];
-  // Initial values from SSR — context takes over via useSearchParams after hydration
   initialGeneric: string;
   initialProductId?: number;
-  initialGroup: string;
-  initialSort: string;
-  initialStore: string;
   children: React.ReactNode;
 }
 
@@ -74,23 +70,18 @@ export function ShoppingListDetailProvider({
   availableGenerics,
   initialGeneric,
   initialProductId,
-  initialGroup,
-  initialSort,
-  initialStore,
   children,
 }: ProviderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // useSearchParams is the live source of truth after hydration.
-  // Initial* props seed the SSR render; after that, URL changes are reactive.
   const generic = searchParams.get('generic') ?? initialGeneric;
   const productId = searchParams.get('productId')
     ? parseInt(searchParams.get('productId')!, 10)
     : initialProductId;
-  const currentGroup = searchParams.get('group') ?? initialGroup;
-  const currentSort = searchParams.get('sort_by') ?? initialSort;
-  const currentStore = searchParams.get('store') ?? initialStore;
+  const currentGroup = searchParams.get('group') ?? 'brand_size';
+  const currentSort = searchParams.get('sort_by') ?? 'price';
+  const currentStore = searchParams.get('store') ?? '';
 
   const {
     lists,
