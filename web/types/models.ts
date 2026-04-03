@@ -68,7 +68,13 @@ export interface GenericResponse {
   groups?: Group[];
   group_mode?: string | null;
   sort_by: string;
-  _meta: unknown;
+  _meta: {
+    fresh_cutoff?: string;
+    excluded_noise?: boolean;
+    store_filter?: string | null;
+    filter?: string | null;
+    total?: number;
+  };
 }
 
 export type StoreKey = 'prezunic' | 'zonasul' | 'hortifruti';
