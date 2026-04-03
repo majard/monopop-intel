@@ -2,6 +2,7 @@
 import { ShoppingListDetailProvider } from './ShoppingListDetailContext';
 import ShoppingListDetailClient from './ShoppingListDetailClient';
 import { GenericSummary } from '@/types/models';
+import { ShoppingListsProvider } from '@/hooks/useShoppingLists';
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -40,13 +41,15 @@ export default async function ShoppingListDetailPage({
   const availableGenerics = await getAvailableGenerics();
 
   return (
-    <ShoppingListDetailProvider
-      listId={listId}
-      availableGenerics={availableGenerics}
-      initialGeneric={sp.generic ?? ''}
-      initialProductId={sp.productId ? parseInt(sp.productId, 10) : undefined}
-    >
-      <ShoppingListDetailClient />
-    </ShoppingListDetailProvider>
+    <ShoppingListsProvider>
+      <ShoppingListDetailProvider
+        listId={listId}
+        availableGenerics={availableGenerics}
+        initialGeneric={sp.generic ?? ''}
+        initialProductId={sp.productId ? parseInt(sp.productId, 10) : undefined}
+      >
+        <ShoppingListDetailClient />
+      </ShoppingListDetailProvider>
+    </ShoppingListsProvider>
   );
 }

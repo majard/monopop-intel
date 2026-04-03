@@ -2,12 +2,20 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useShoppingLists, ShoppingList } from '../../hooks/useShoppingLists';
+import { useShoppingLists, ShoppingList, ShoppingListsProvider } from '../../hooks/useShoppingLists';
 import { buildShoppingListExport } from '../../utils/shoppingListExport';
 import { STORE_KEYS } from '@/constants/stores';
 import Link from 'next/link';
 
-export default function ShoppingListsPage() {
+export default function ShoppingListsPageWrapper() {
+  return (
+    <ShoppingListsProvider>
+      <ShoppingListsPage />
+    </ShoppingListsProvider>
+  );
+}
+
+function ShoppingListsPage() {
   const router = useRouter();
   const { lists, createList, renameList, deleteList } = useShoppingLists();
 
