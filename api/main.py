@@ -41,6 +41,46 @@ app.add_middleware(
 # ── Search ────────────────────────────────────────────────────────────────────
 
 
+async def enrich_with_generics(results: list[dict]) -> list[dict]:
+    """
+    Looks up generic_name and internal db id for each result by vtex_product_id + store.
+    Products not in DB get generic_name=None, db_id=None — frontend handles gracefully.
+    """
+    if not results:
+        return results
+
+    pool = await get_pool()
+    vtex_ids = [(r["product_id"], r["store"]) for r in results]
+
+    print("enriching with generics", vtex_ids)
+
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT vtex_product_id, store, id, generic_name
+            FROM products
+            WHERE (vtex_product_id, store) IN (
+                SELECT * FROM UNNEST($1::text[], $2::text[])
+            )
+            """,
+            [r[0] for r in vtex_ids],
+            [r[1] for r in vtex_ids],
+        )
+
+    print("rows", rows)
+    lookup = {(r["vtex_product_id"], r["store"]): r for r in rows}
+
+    enriched = []
+    for r in results:
+        match = lookup.get((r["product_id"], r["store"]))
+        enriched.append({
+            **r,
+            "db_id": match["id"] if match else None,
+            "generic_name": match["generic_name"] if match else None,
+        })
+    return enriched
+
 @app.get("/search")
 async def search_products(
     q: str = Query(..., min_length=1, description="Search term"),
@@ -82,6 +122,10 @@ async def search_products(
         }
 
     result = await search_async(q, store=store, sort=sort, page=page)
+    print("result", result)
+    page_results = await enrich_with_generics(result["results"])
+    result["results"] = page_results
+
     await set_cached(query_key, store, q, result)
 
     return {**result, "_cache": {"hit": False}}
