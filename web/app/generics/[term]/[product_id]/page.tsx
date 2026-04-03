@@ -45,6 +45,23 @@ async function fetchGeneric(term: string, group?: string, sortBy?: string, store
   }
 }
 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ term: string; product_id: string }>;
+}) {
+  const { term } = await params;
+  const decoded = decodeURIComponent(term);
+  return {
+    title: `${decoded} — preço em supermercados do Rio`,
+    description: `Compare o preço de ${decoded} no Prezunic, Zona Sul e Hortifruti. Atualizado diariamente pelo Monopop Intel.`,
+    openGraph: {
+      title: `${decoded} · Monopop Intel`,
+      description: `Preços e histórico de ${decoded} nos supermercados do Rio de Janeiro.`,
+    },
+  };
+}
+
 export default async function GenericProductPage({
   params,
   searchParams,

@@ -14,8 +14,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "monopop-intel",
-  description: "Market price intelligence for Rio de Janeiro supermarkets.",
+  title: {
+    default: 'Monopop Intel',
+    template: '%s · Monopop Intel',
+  },
+  description: 'Inteligência de preços para supermercados do Rio de Janeiro. Compare Prezunic, Zona Sul e Hortifruti.',
+  openGraph: {
+    siteName: 'Monopop Intel',
+    locale: 'pt_BR',
+    type: 'website',
+  },
 };
 
 export default function RootLayout({
