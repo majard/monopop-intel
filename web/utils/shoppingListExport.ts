@@ -1,5 +1,6 @@
 import type { ShoppingList, ShoppingListItem, GenericResponse, GenericProduct, PricingStrategy, StoreKey } from '@/types/models';
 import { STORES, STORE_KEYS } from '@/constants/stores';
+import { denormalizeUnit } from '@/utils/normalizeUnit';
 
 export type { PricingStrategy };
 
@@ -68,7 +69,7 @@ export function resolveExportPrices(
           store: item.pinnedStore as StoreKey,
           storeId,
           price: item.pinnedPrice!,
-          packageSize: item.preferredStdSize ?? null,
+          packageSize: item.preferredStdSize ? denormalizeUnit(item.preferredStdSize, item.preferredUnit!).size : null,
           source: 'pinned',
         });
       }
@@ -94,7 +95,7 @@ export function resolveExportPrices(
               store,
               storeId: STORES[store].monopopId,
               price: best.price!,
-              packageSize: best.package_size,
+              packageSize: best.package_size ? denormalizeUnit(best.package_size, best.unit!).size : null,
               source: 'filled',
             });
           }
@@ -207,8 +208,9 @@ export function buildShoppingListExport(
     createdAt: now,
     updatedAt: now,
     unit: item.preferredUnit ?? null,
-    standardPackageSize: item.preferredStdSize ?? null,
+    standardPackageSize: item.preferredStdSize ? denormalizeUnit(item.preferredStdSize, item.preferredUnit!).size : null,
   }));
+  
 
   const inventoryItems: MonopopInventoryItem[] = list.items.map((item, index) => ({
     id: 2000 + index,
@@ -232,7 +234,7 @@ export function buildShoppingListExport(
       notes: item.notes ?? null,
       createdAt: now,
       updatedAt: now,
-      packageSize: item.preferredStdSize ?? null,
+      packageSize: item.preferredStdSize ? denormalizeUnit(item.preferredStdSize, item.preferredUnit!).size : null,
     })
   );
 
