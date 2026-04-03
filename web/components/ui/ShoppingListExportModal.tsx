@@ -239,7 +239,10 @@ export default function ShoppingListExportModal({
 
                       <div className="flex items-center gap-3 shrink-0 text-xs">
                         {prices.length === 0 ? (
-                          <span className="text-zinc-700">sem preço</span>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500/60 flex-shrink-0" />
+                            <span className="text-[10px] text-red-400/80">sem preço — não será exportado com valor</span>
+                          </div>
                         ) : (
                           prices.map(resolvedPrice => (
                             <span key={resolvedPrice.store} className="flex items-baseline gap-1">
