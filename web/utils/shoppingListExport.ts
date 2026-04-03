@@ -274,3 +274,21 @@ export function buildShoppingListExport(
     fileName: `monopop-lista-${safeName}-${timestamp}.json`,
   };
 }
+// utils/shoppingListExport.ts — add alongside buildShoppingListExport
+export function buildShoppingListText(list: ShoppingList): string {
+  const lines = [
+    `📋 ${list.name}`,
+    `${new Date().toLocaleDateString('pt-BR')}`,
+    '',
+  ];
+  for (const item of list.items) {
+    const price = item.pinnedPrice
+      ? `R$ ${item.pinnedPrice.toFixed(2).replace('.', ',')}`
+      : 'sem preço';
+    const qty = item.quantity > 1 ? `${item.quantity}x ` : '';
+    lines.push(`${qty}${item.genericName} — ${price}`);
+  }
+  const total = list.items.reduce((s, i) => s + i.quantity * (i.pinnedPrice ?? 0), 0);
+  lines.push('', `Total: R$ ${total.toFixed(2).replace('.', ',')}`);
+  return lines.join('\n');
+}

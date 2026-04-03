@@ -5,6 +5,7 @@ import type { ShoppingList, GenericResponse, PricingStrategy, StoreKey } from '@
 import { STORES, STORE_KEYS } from '@/constants/stores';
 import {
   buildShoppingListExport,
+  buildShoppingListText,
   resolveExportPrices,
   type ExportOptions,
 } from '@/utils/shoppingListExport';
@@ -44,6 +45,9 @@ export default function ShoppingListExportModal({
   const [fillStrategy, setFillStrategy] = useState<PricingStrategy>('price_per_unit');
   const [cachedData, setCachedData] = useState<Map<string, GenericResponse>>(new Map());
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+
+  const [copied, setCopied] = useState(false);
+
 
   const pinnedCount = list.items.filter(item => !!item.productId).length;
 
@@ -100,6 +104,15 @@ export default function ShoppingListExportModal({
     document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
     onClose();
+  };
+
+
+  const handleCopyText = () => {
+    const text = buildShoppingListText(list);
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
   };
 
   if (!isOpen) return null;
@@ -254,17 +267,36 @@ export default function ShoppingListExportModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 pt-3 border-t border-zinc-800 flex gap-2 mt-2">
+        <div className="p-4 pt-3 border-t border-zinc-800 flex gap-4 mt-2">
           <button
             onClick={onClose}
             className="flex-1 py-2.5 text-sm text-zinc-500 hover:text-zinc-300 font-medium transition-colors cursor-pointer"
           >
             Cancelar
           </button>
+
+          <button
+            onClick={handleCopyText}
+            className="flex flex-1 items-center gap-2 text-zinc-500 hover:text-zinc-300 px-1 py-2 rounded-lg text-sm transition-all cursor-pointer"
+          >
+            {copied ? (
+              <><span className="text-emerald-400">✓</span> Copiado!</>
+            ) : (
+              <>
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden>
+                  <rect x="1" y="3" width="9" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+                  <path d="M4 3V2a1 1 0 011-1h2a1 1 0 011 1v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                  <path d="M11 1h-2a1 1 0 00-1 1v2h3V2a1 1 0 00-1-1z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+                </svg>
+                Copiar texto
+              </>
+            )}
+          </button>
+
           <button
             onClick={handleDownload}
             disabled={selectedStores.length === 0}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-black font-semibold py-2.5 rounded-xl transition-colors cursor-pointer text-sm"
+            className="flex-1 bg-emerald-600 px-4 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-black font-semibold py-2.5 rounded-xl transition-colors cursor-pointer text-sm"
           >
             ↓ Baixar export
           </button>
