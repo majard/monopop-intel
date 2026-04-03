@@ -1,19 +1,43 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useContext, createContext } from 'react';
 import type { ShoppingListItem, ShoppingList } from '@/types/models';
 
 export type { ShoppingListItem, ShoppingList };
 
 const STORAGE_KEY = 'mintel-shopping-lists';
 
+// ─── Context ──────────────────────────────────────────────────────────────────
+
+type ShoppingListsContextValue = ReturnType<typeof useShoppingListsInternal>;
+
+export const ShoppingListsContext = createContext<ShoppingListsContextValue | null>(null);
+
+export function ShoppingListsProvider({ children }: { children: React.ReactNode }) {
+  const value = useShoppingListsInternal();
+  return (
+    <ShoppingListsContext.Provider value= { value } >
+    { children }
+    </ShoppingListsContext.Provider>
+  );
+}
+
 export function useShoppingLists() {
+  const ctx = useContext(ShoppingListsContext);
+  if (!ctx) throw new Error('useShoppingLists must be used within ShoppingListsProvider');
+  return ctx;
+}
+
+// ─── Internal implementation ──────────────────────────────────────────────────
+
+function useShoppingListsInternal() {
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const isInitialized = useRef(false);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     if (isInitialized.current) return;
+    isInitialized.current = true;
 
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -31,50 +55,48 @@ export function useShoppingLists() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify([defaultList]));
       }
     } catch (error) {
-      console.error('Failed to load shopping lists from localStorage', error);
+      console.error('Failed to load shopping lists', error);
     } finally {
-      isInitialized.current = true;
       setIsReady(true);
     }
   }, []);
 
   useEffect(() => {
-    if (!isInitialized.current) return;
+    if (!isReady) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(lists));
     } catch (error) {
-      console.error('Failed to save shopping lists to localStorage', error);
+      console.error('Failed to save shopping lists', error);
     }
-  }, [lists]);
+  }, [lists, isReady]);
 
   const createList = useCallback((name = 'Nova Lista'): string => {
     const newList: ShoppingList = {
       id: `list-${Date.now()}`,
-      name: name.trim() || `Lista ${lists.length + 1}`,
+      name: name.trim() || 'Nova Lista',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       items: [],
     };
     setLists(prev => [...prev, newList]);
     return newList.id;
-  }, [lists.length]);
+  }, []);
 
   const renameList = useCallback((listId: string, newName: string) => {
     setLists(prev =>
-      prev.map(list =>
-        list.id === listId
-          ? { ...list, name: newName.trim() || list.name, updatedAt: new Date().toISOString() }
-          : list
+      prev.map(l =>
+        l.id === listId
+          ? { ...l, name: newName.trim() || l.name, updatedAt: new Date().toISOString() }
+          : l
       )
     );
   }, []);
 
   const deleteList = useCallback((listId: string) => {
-    setLists(prev => prev.filter(list => list.id !== listId));
+    setLists(prev => prev.filter(l => l.id !== listId));
   }, []);
 
   const addItem = useCallback((listId: string, item: Omit<ShoppingListItem, 'id'>): string => {
-    // Return existing item id if generic already in list — let caller decide to pin/update
     const existing = lists
       .find(l => l.id === listId)
       ?.items.find(i => i.genericName.toLowerCase() === item.genericName.toLowerCase());
@@ -86,10 +108,10 @@ export function useShoppingLists() {
       quantity: item.quantity || 1,
     };
     setLists(prev =>
-      prev.map(list =>
-        list.id === listId
-          ? { ...list, items: [...list.items, newItem], updatedAt: new Date().toISOString() }
-          : list
+      prev.map(l =>
+        l.id === listId
+          ? { ...l, items: [...l.items, newItem], updatedAt: new Date().toISOString() }
+          : l
       )
     );
     return newItem.id;
@@ -105,29 +127,29 @@ export function useShoppingLists() {
     pinnedStore?: string
   ) => {
     setLists(prev =>
-      prev.map(list =>
-        list.id === listId
+      prev.map(l =>
+        l.id === listId
           ? {
-            ...list,
-            items: list.items.map(item =>
+            ...l,
+            items: l.items.map(item =>
               item.id === itemId
                 ? { ...item, productId, preferredUnit, preferredStdSize, pinnedPrice, pinnedStore }
                 : item
             ),
             updatedAt: new Date().toISOString(),
           }
-          : list
+          : l
       )
     );
   }, []);
 
   const unpinItem = useCallback((listId: string, itemId: string) => {
     setLists(prev =>
-      prev.map(list =>
-        list.id === listId
+      prev.map(l =>
+        l.id === listId
           ? {
-            ...list,
-            items: list.items.map(item =>
+            ...l,
+            items: l.items.map(item =>
               item.id === itemId
                 ? {
                   ...item,
@@ -141,49 +163,51 @@ export function useShoppingLists() {
             ),
             updatedAt: new Date().toISOString(),
           }
-          : list
+          : l
       )
     );
   }, []);
 
   const updateItem = useCallback((listId: string, itemId: string, updates: Partial<ShoppingListItem>) => {
     setLists(prev =>
-      prev.map(list =>
-        list.id === listId
+      prev.map(l =>
+        l.id === listId
           ? {
-            ...list,
-            items: list.items.map(item =>
+            ...l,
+            items: l.items.map(item =>
               item.id === itemId ? { ...item, ...updates } : item
             ),
             updatedAt: new Date().toISOString(),
           }
-          : list
+          : l
       )
     );
   }, []);
 
   const removeItem = useCallback((listId: string, itemId: string) => {
     setLists(prev =>
-      prev.map(list =>
-        list.id === listId
+      prev.map(l =>
+        l.id === listId
           ? {
-            ...list,
-            items: list.items.filter(item => item.id !== itemId),
+            ...l,
+            items: l.items.filter(item => item.id !== itemId),
             updatedAt: new Date().toISOString(),
           }
-          : list
+          : l
       )
     );
   }, []);
 
   const getListById = useCallback((listId: string) => {
-    return lists.find(list => list.id === listId);
+    return lists.find(l => l.id === listId);
   }, [lists]);
 
   const getActiveList = useCallback(() => lists[0] ?? null, [lists]);
 
   return {
     lists,
+    isReady,
+    isInitialized,
     createList,
     renameList,
     deleteList,
@@ -194,7 +218,5 @@ export function useShoppingLists() {
     unpinItem,
     getListById,
     getActiveList,
-    isInitialized,
-    isReady,
   };
 }
