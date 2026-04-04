@@ -280,8 +280,24 @@ export default async function Home({
         )}
 
         {data === null && !q && (
-          <p className="text-zinc-600 text-sm">
+          <p className="text-zinc-600 text-center text-sm">
             digite um produto pra começar.
+          </p>
+        )}
+        {!q && (
+          <p className="text-zinc-700 text-xs text-center mt-6">
+            ou explore o{' '}
+            <Link href={"/history"} className="text-zinc-600 hover:text-zinc-400 underline transition-colors">
+              histórico de termos
+            </Link>
+            , e de{' '}
+            <Link href="/generics" className="text-zinc-600 hover:text-zinc-400 underline transition-colors">
+              básicos monitorados
+            </Link>
+            {' '}e crie uma{' '}
+            <Link href="/shopping-lists" className="text-zinc-600 hover:text-zinc-400 underline transition-colors">
+              lista de compras
+            </Link>
           </p>
         )}
 
