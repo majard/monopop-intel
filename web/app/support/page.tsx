@@ -9,9 +9,9 @@ export const metadata = {
 export default function ApoiarPage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-6">
-      <div className="max-w-lg mx-auto py-2">
+      <div className="max-w-3xl mx-auto py-0">
 
-        <div className="mb-12">
+        <div className="mb-4">
           <Link
             href="/"
             className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors"
@@ -22,21 +22,20 @@ export default function ApoiarPage() {
 
         <h1 className="text-2xl font-bold text-white mb-3">Apoiar o projeto</h1>
 
-        <p className="text-zinc-400 text-sm leading-relaxed mb-8">
+        <p className="text-zinc-400 text-sm leading-relaxed mb-4">
           Monopop Intel é gratuito, sem anúncios e sem rastreamento.
           É uma ferramenta construída para ajudar pessoas a comparar preços e
           comprar com mais consciência — parte de um projeto maior de organização
           popular de consumo.
         </p>
 
-        <p className="text-zinc-500 text-sm leading-relaxed mb-12">
-          Se for útil pra você, considere contribuir. 
-          Se o Monopop já te economizou R$ 20, doar R$ 2 mantém ele vivo.
-          Qualquer valor ajuda a manter o servidor no ar e o desenvolvedor motivado.
+        <p className="text-zinc-500 text-sm leading-relaxed mb-6">
+          Esse projeto só continua existindo se quem usa contribui.
+          Se o Monopop já te fez economizar, uma pequena parte disso mantém ele no ar.
         </p>
 
         {/* Pix block */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-8">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-6">
           <p className="text-xs text-zinc-600 uppercase tracking-widest mb-4">Pix</p>
 
           <div className="space-y-3">
@@ -62,10 +61,27 @@ export default function ApoiarPage() {
             </div>
           </div>
         </div>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-4">
+          <p className="text-xs text-zinc-600 uppercase tracking-widest mb-4">Monopop</p>
+          <p className="text-sm text-zinc-400 leading-relaxed mb-4">
+            O app Monopop transforma sua compra em decisão racional.
+            Compare preços por unidade, controle estoque e evite pagar mais caro por distração.
+          </p>
+
+          <a
+            href="https://github.com/majard/monopop/releases"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-emerald-500 hover:text-emerald-400 transition-colors"
+          >
+            Baixar no Github Releases →
+          </a>
+        </div>
 
         <p className="text-zinc-700 text-xs text-center">
-          Obrigado. Sério.
+          Obrigado. Isso aqui só existe porque alguém decidiu ajudar.
         </p>
+
       </div>
     </main >
   );
