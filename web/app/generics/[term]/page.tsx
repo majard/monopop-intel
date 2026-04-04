@@ -5,6 +5,7 @@ import AddToListButton from '@/components/ui/AddToListButton';
 import { STORES } from '@/constants/stores';
 import { GenericProduct, Group, GenericResponse } from '@/types/models';
 import { ShoppingListsProvider } from '@/hooks/useShoppingLists';
+import IntelFooter from '@/components/ui/IntelFooter';
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -347,16 +348,7 @@ export default async function GenericTermPage({
           </div>
         )}
 
-        <p className="text-[11px] text-zinc-800 text-center mt-12">
-          Monopop Intel é gratuito e sem anúncios.{' '}
-
-          <Link
-            href="/support"
-            className="text-zinc-700 hover:text-zinc-500 underline transition-colors"
-          >
-            Apoiar o projeto →
-          </Link>
-        </p>
+        <IntelFooter className="mt-10" />
       </div>
     </main >
   );

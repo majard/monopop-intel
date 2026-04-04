@@ -6,6 +6,7 @@ import { useShoppingLists, ShoppingList, ShoppingListsProvider } from '../../hoo
 import { buildShoppingListExport } from '../../utils/shoppingListExport';
 import { STORE_KEYS } from '@/constants/stores';
 import Link from 'next/link';
+import IntelFooter from '@/components/ui/IntelFooter';
 
 export default function ShoppingListsPageWrapper() {
   return (
@@ -233,12 +234,7 @@ function ShoppingListsPage() {
           </div>
         )}
       </div>
-      <p className="text-[11px] text-zinc-800 text-center mt-10">
-        Monopop Intel é gratuito e sem anúncios.{' '}
-        <Link href="/support" className="text-zinc-700 hover:text-zinc-500 underline transition-colors">
-          Apoiar o projeto →
-        </Link>
-      </p>
+      <IntelFooter className="mt-10" />
     </main>
   );
 }
