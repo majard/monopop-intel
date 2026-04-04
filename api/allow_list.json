@@ -849,6 +849,10 @@
             "category": "padaria_cereais"
         },
         {
+            "term": "pao",
+            "category": "padaria_cereais"
+        },
+        {
             "term": "biscoito cream cracker",
             "category": "padaria_cereais"
         },

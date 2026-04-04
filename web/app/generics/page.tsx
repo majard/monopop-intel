@@ -12,7 +12,7 @@ const API = process.env.NEXT_PUBLIC_API_URL;
 async function fetchGenerics() {
   if (!API) return [];
   try {
-    const res = await fetch(`${API}/generics`, { next: { revalidate: 3600 } });
+    const res = await fetch(`${API}/generics`, { next: { revalidate: 14400 } });
     if (!res.ok) return [];
     const data = await res.json();
     return data.generics ?? [];
@@ -25,7 +25,7 @@ export default async function GenericsPage() {
   const generics = await fetchGenerics();
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono">
-      <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="max-w-4xl mx-auto px-6 py-6">
         <div className="mb-10">
           <h1 className="text-2xl font-bold text-white">Básicos</h1>
           <p className="text-zinc-600 text-sm mt-1">

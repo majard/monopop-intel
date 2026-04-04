@@ -1,3 +1,4 @@
+import { STORES } from "@/constants/stores";
 import Link from "next/link";
 
 interface Product {
@@ -55,12 +56,6 @@ const SORT_LABELS: Record<string, string> = {
   name_desc: "z → a",
 };
 
-const STORE_LABELS: Record<string, string> = {
-  prezunic: "Prezunic",
-  zonasul: "Zona Sul",
-  hortifruti: "Hortifruti",
-  all: "Todas as lojas",
-};
 
 function buildUrl(params: Record<string, string>) {
   return `?${new URLSearchParams(params).toString()}`;
@@ -143,7 +138,7 @@ export default async function Home({
               {data.total ? `${data.total} resultado${data.total !== 1 ? "s" : ""} · ` : ""}
               página {data.page}{totalPages ? ` de ${totalPages}` : ""} ·{" "}
               <span className="text-emerald-400">"{data.query}"</span> em{" "}
-              <span className="text-zinc-300">{STORE_LABELS[data.store] ?? data.store}</span>
+              <span className="text-zinc-300">{STORES[data.store as keyof typeof STORES]?.label ?? data.store}</span>
               {data._cache?.hit && (
                 <span className="text-zinc-600"> · cache {data._cache.age_seconds}s</span>
               )}
@@ -194,7 +189,7 @@ export default async function Home({
                           )}
                           {store === 'all' && (
                             <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
-                              {STORE_LABELS[product.store] ?? product.store}
+                              {STORES[product.store as keyof typeof STORES]?.label ?? product.store}
                             </span>
                           )}
                           {product.list_price !== null &&
