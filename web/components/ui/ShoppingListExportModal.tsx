@@ -108,7 +108,10 @@ export default function ShoppingListExportModal({
 
 
   const handleCopyText = () => {
-    const text = buildShoppingListText(list);
+    const text = buildShoppingListText(list, resolvedItems, {
+      fillStrategy,
+      selectedStores,
+    });
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);

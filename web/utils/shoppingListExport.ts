@@ -73,7 +73,7 @@ export function resolveExportPrices(
           source: 'pinned',
         });
       }
-    } 
+    }
 
 
     // Fill remaining stores from cache if strategy allows
@@ -210,7 +210,7 @@ export function buildShoppingListExport(
     unit: item.preferredUnit ?? null,
     standardPackageSize: item.preferredStdSize ? denormalizeUnit(item.preferredStdSize, item.preferredUnit!).size : null,
   }));
-  
+
 
   const inventoryItems: MonopopInventoryItem[] = list.items.map((item, index) => ({
     id: 2000 + index,
@@ -274,21 +274,62 @@ export function buildShoppingListExport(
     fileName: `monopop-lista-${safeName}-${timestamp}.json`,
   };
 }
-// utils/shoppingListExport.ts — add alongside buildShoppingListExport
-export function buildShoppingListText(list: ShoppingList): string {
-  const lines = [
-    `📋 ${list.name}`,
-    `${new Date().toLocaleDateString('pt-BR')}`,
+
+export function buildShoppingListText(
+  list: ShoppingList,
+  resolvedItems: ResolvedItem[],
+  options: Pick<ExportOptions, 'fillStrategy' | 'selectedStores'>
+): string {
+  const lines: string[] = [
+    `🛒 ${list.name}`,
+    new Date().toLocaleDateString('pt-BR', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+    }),
     '',
   ];
-  for (const item of list.items) {
-    const price = item.pinnedPrice
-      ? `R$ ${item.pinnedPrice.toFixed(2).replace('.', ',')}`
-      : 'sem preço';
-    const qty = item.quantity > 1 ? `${item.quantity}x ` : '';
-    lines.push(`${qty}${item.genericName} — ${price}`);
+
+  for (const { item, prices } of resolvedItems) {
+    const qty = item.quantity > 1 ? `${item.quantity}× ` : '';
+    const pinnedPrice = prices.find(p => p.source === 'pinned');
+
+    if (options.fillStrategy === 'none') {
+      // Simple: one line per item
+      const priceStr = pinnedPrice
+        ? `R$ ${pinnedPrice.price.toFixed(2).replace('.', ',')} (${STORES[pinnedPrice.store]?.label ?? pinnedPrice.store})`
+        : 'sem preço';
+      lines.push(`${qty}${item.genericName} — ${priceStr}`);
+    } else {
+      // Rich: item name, then indented prices per store
+      lines.push(`${qty}${item.genericName}`);
+      if (prices.length === 0) {
+        lines.push('  sem preço');
+      } else {
+        for (const p of prices) {
+          const storeLabel = STORES[p.store]?.label ?? p.store;
+          const priceStr = `R$ ${p.price.toFixed(2).replace('.', ',')}`;
+          const tag = p.source === 'pinned' ? ' ✓' : '';
+          lines.push(`  ${storeLabel}: ${priceStr}${tag}`);
+        }
+      }
+    }
   }
-  const total = list.items.reduce((s, i) => s + i.quantity * (i.pinnedPrice ?? 0), 0);
-  lines.push('', `Total: R$ ${total.toFixed(2).replace('.', ',')}`);
+
+  const total = resolvedItems.reduce((sum, { item, prices }) => {
+    const price = prices.find(p => p.source === 'pinned')?.price ?? item.pinnedPrice ?? 0;
+    return sum + item.quantity * price;
+  }, 0);
+
+  lines.push('');
+  lines.push(`Total: R$ ${total.toFixed(2).replace('.', ',')}`);
+
+  if (options.fillStrategy !== 'none') {
+    const filledCount = resolvedItems.filter(
+      r => r.prices.some(p => p.source === 'filled')
+    ).length;
+    if (filledCount > 0) {
+      lines.push(`(${filledCount} ${filledCount === 1 ? 'item' : 'itens'} com preço estimado)`);
+    }
+  }
+
   return lines.join('\n');
 }
