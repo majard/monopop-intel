@@ -305,7 +305,19 @@ export default function ShoppingListExportModal({
           </button>
         </div>
 
+        <p className="text-[11px] text-zinc-700 text-center mt-2 mb-4">
+          Quer usar essa lista no celular?{' '}
+
+          <a href="https://github.com/majard/monopop/releases"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-zinc-600 hover:text-zinc-400 underline transition-colors"
+          >
+            Baixar o Monopop →
+          </a>
+        </p>
       </div>
+
     </div>
   );
 }
