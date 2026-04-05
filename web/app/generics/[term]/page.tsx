@@ -6,6 +6,7 @@ import { STORES } from '@/constants/stores';
 import { GenericProduct, Group, GenericResponse } from '@/types/models';
 import { ShoppingListsProvider } from '@/hooks/useShoppingLists';
 import IntelFooter from '@/components/ui/IntelFooter';
+import GenericProductList from '@/components/ui/GenericProductList';
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -87,7 +88,7 @@ export default async function GenericTermPage({
   const allProducts: GenericProduct[] = isGrouped
     ? data.groups!.flatMap(g => g.variants as GenericProduct[])
     : data.products ?? [];
-
+    
   const availableWithUnit = allProducts.filter(
     p => p.price_per_unit !== null && p.available
   );
@@ -95,12 +96,6 @@ export default async function GenericTermPage({
     availableWithUnit.length > 0
       ? Math.min(...availableWithUnit.map(p => p.price_per_unit!))
       : null;
-
-  const isGlobalBest = (p: { price_per_unit: number | null; available: boolean }) =>
-    p.price_per_unit !== null &&
-    p.available &&
-    minPricePerUnit !== null &&
-    Math.abs(p.price_per_unit - minPricePerUnit) < 0.0001;
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono">
@@ -180,173 +175,14 @@ export default async function GenericTermPage({
         </div>
 
         {/* Products */}
-        {isGrouped ? (
-          <div className="space-y-6">
-            {data.groups!.map((group: Group) => {
-              const validPrices = group.variants
-                .filter(v => v.price !== null && v.available)
-                .map(v => v.price!);
-              const minGroupPrice =
-                validPrices.length > 0 ? Math.min(...validPrices) : null;
-              const maxGroupPrice =
-                validPrices.length > 0 ? Math.max(...validPrices) : null;
 
-              return (
-                <div
-                  key={group.canonical_key}
-                  className="bg-zinc-900 border border-zinc-800 rounded-xl p-5"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <p className="font-medium text-white text-sm">
-                        {Array.isArray(group.brand)
-                          ? group.brand.join(' · ')
-                          : group.brand || 'Sem marca'}
-                      </p>
-                      {group.normalized_size && (
-                        <p className="text-xs text-zinc-500 mt-0.5">
-                          {group.normalized_size}
-                        </p>
-                      )}
-                    </div>
-                    {minGroupPrice !== null && (
-                      <div className="text-right shrink-0">
-                        <p className="text-emerald-400 text-sm font-medium tabular-nums">
-                          {formatPrice(minGroupPrice)}
-                          {maxGroupPrice !== null && maxGroupPrice !== minGroupPrice && (
-                            <span className="text-zinc-600">
-                              {' '}— {formatPrice(maxGroupPrice)}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    {group.variants.map(v => {
-                      const isCheapest =
-                        minGroupPrice !== null &&
-                        v.price === minGroupPrice &&
-                        v.available;
-                      const isBestUnit = isGlobalBest(v);
-
-                      return (
-                        <Link
-                          key={v.product_id}
-                          href={`/generics/${encodeURIComponent(decodedTerm)}/${v.product_id}`}
-                          className="block group"
-                        >
-                          <div
-                            className={`relative flex justify-between items-center px-4 py-3 rounded-lg border transition-colors ${isCheapest
-                              ? 'border-emerald-500/30'
-                              : 'border-zinc-800'
-                              } hover:border-emerald-500/60`}
-                          >
-                            {isCheapest && (
-                              <div className="absolute -top-2 left-3 bg-zinc-950 px-1">
-                                <span className="bg-emerald-500 text-zinc-950 text-[9px] font-bold px-2 py-0.5 rounded">
-                                  melhor preço
-                                </span>
-                              </div>
-                            )}
-                            {isBestUnit && (
-                              <div className="absolute -top-2 right-3 bg-zinc-950 px-1">
-                                <span className="bg-amber-500 text-zinc-950 text-[9px] font-bold px-2 py-0.5 rounded">
-                                  melhor/unid
-                                </span>
-                              </div>
-                            )}
-
-                            <div className="flex-1 pr-4 min-w-0">
-                              <p className="text-xs text-zinc-500">
-                                {STORES[v.store as keyof typeof STORES]?.label ?? v.store}
-                              </p>
-                              <p className="text-sm text-zinc-200 group-hover:text-emerald-400 transition-colors truncate mt-0.5">
-                                {v.name}
-                              </p>
-                            </div>
-
-                            <div className="text-right shrink-0">
-                              <p
-                                className={`font-medium tabular-nums ${isCheapest ? 'text-emerald-400' : 'text-zinc-300'
-                                  }`}
-                              >
-                                {formatPrice(v.price)}
-                              </p>
-                              {v.display_per_unit && (
-                                <p className="text-[10px] text-zinc-600">
-                                  {v.display_per_unit}
-                                </p>
-                              )}
-                              <span className="text-[10px] text-emerald-500 opacity-0 group-hover:opacity-70 transition-opacity mt-0.5 inline-block">
-                                ver detalhes →
-                              </span>
-                            </div>
-                          </div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {(data.products ?? []).map((p: GenericProduct) => {
-              const isBestUnit = isGlobalBest(p);
-              return (
-                <Link
-                  key={p.product_id}
-                  href={`/generics/${encodeURIComponent(decodedTerm)}/${p.product_id}`}
-                  className="group block bg-zinc-900 border border-zinc-800 hover:border-emerald-500/40 rounded-xl px-5 py-4 transition-colors relative"
-                >
-                  {isBestUnit && (
-                    <div className="absolute -top-2 right-4 bg-zinc-950 px-1">
-                      <span className="bg-amber-500 text-zinc-950 text-[9px] font-bold px-2 py-0.5 rounded">
-                        melhor/unid
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-zinc-200 group-hover:text-emerald-400 transition-colors truncate">
-                        {p.name}
-                      </p>
-                      <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500 border border-zinc-700/60">
-                          {STORES[p.store as keyof typeof STORES]?.label ?? p.store}
-                        </span>
-                        {p.parsed_brand && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800/60 text-zinc-600 border border-zinc-800">
-                            {p.parsed_brand}
-                          </span>
-                        )}
-                        {p.normalized_size && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/15">
-                            {p.normalized_size}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-emerald-400 font-bold tabular-nums">
-                        {formatPrice(p.price)}
-                      </p>
-                      {p.display_per_unit && (
-                        <p className="text-[10px] text-zinc-600">{p.display_per_unit}</p>
-                      )}
-                      <span className="text-[10px] text-emerald-500 opacity-0 group-hover:opacity-70 transition-opacity mt-0.5 inline-block">
-                        ver detalhes →
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+        <GenericProductList
+          termEncoded={encodeURIComponent(decodedTerm)}
+          isGrouped={isGrouped}
+          groups={isGrouped ? data.groups ?? [] : undefined}
+          products={!isGrouped ? data.products ?? [] : undefined}
+          minPricePerUnit={minPricePerUnit}
+        />
 
         <IntelFooter className="mt-10" />
       </div>

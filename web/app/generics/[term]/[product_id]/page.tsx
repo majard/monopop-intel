@@ -6,6 +6,7 @@ import { STORES } from '@/constants/stores';
 import { GenericProduct, Group, GenericResponse } from "@/types/models";
 import { ShoppingListsProvider } from "@/hooks/useShoppingLists";
 import IntelFooter from "@/components/ui/IntelFooter";
+import GenericProductList from "@/components/ui/GenericProductList";
 
 
 const API = process.env.NEXT_PUBLIC_API_URL;
@@ -307,153 +308,14 @@ export default async function GenericProductPage({
             />
           </div>
 
-          {/* Render content based on mode */}
-          {isGrouped ? (
-            <div className="space-y-6">
-              {relatedGroups.map((group) => {
-                const validPrices = group.variants
-                  .filter(v => v.price !== null && v.available)
-                  .map(v => v.price!);
-                const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : null;
-
-                // FIX: Only show "mesma embalagem" label in brand_size mode
-                const isExactMatchGroup = currentGroup === "brand_size" &&
-                  mainProductCanonicalKey &&
-                  group.canonical_key === mainProductCanonicalKey;
-
-                return (
-                  <div key={group.canonical_key} className={`bg-zinc-900 border ${isExactMatchGroup ? "border-emerald-500/40" : "border-zinc-800"} rounded-lg p-5`}>
-                    {isExactMatchGroup && (
-                      <div className="text-emerald-400 text-xs font-medium mb-3 flex items-center gap-1">
-                        <span className="bg-emerald-500/10 px-2 py-0.5 rounded">MESMA EMBALAGEM EM OUTRAS LOJAS</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between mb-4">
-                      <div>
-                        <div className="font-semibold text-white">
-                          {Array.isArray(group.brand) ? group.brand.join(" • ") : group.brand || "Sem marca"}
-                        </div>
-                        {group.normalized_size && (
-                          <div className="text-sm text-zinc-400">{group.normalized_size}</div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      {group.variants.map((v) => {
-                        const isCheapestInGroup = minPrice !== null && v.price === minPrice && v.available;
-                        const vIsGlobalBest = isGlobalBestPerUnit(v);
-
-                        return (
-                          <Link
-                            key={v.product_id}
-                            href={`/generics/${encodeURIComponent(decodedTerm)}/${v.product_id}`}
-                            className="block group"
-                          >
-                            <div className={`relative flex justify-between items-center px-4 py-3 rounded border ${isCheapestInGroup ? "border-emerald-500/40" : "border-zinc-800"} hover:border-emerald-500 transition-colors`}>
-                              {isCheapestInGroup && (
-                                <div className="absolute -top-2 left-3 bg-zinc-950 px-1">
-                                  <div className="bg-emerald-500 text-zinc-950 text-[10px] font-bold px-2.5 py-0.5 rounded">
-                                    melhor preço
-                                  </div>
-                                </div>
-                              )}
-
-                              {vIsGlobalBest && (
-                                <div className="absolute -top-2 right-3 bg-zinc-950 px-1">
-                                  <div className="bg-amber-500 text-zinc-950 text-[10px] font-bold px-2.5 py-0.5 rounded">
-                                    melhor por unidade
-                                  </div>
-                                </div>
-                              )}
-
-                              <div className="text-sm pr-8">
-                                <span className="text-zinc-400">{STORES[v.store as keyof typeof STORES]?.label ?? v.store}</span>
-                                {" • "}
-                                <span className="text-zinc-100 group-hover:text-emerald-400 transition-colors">{v.name}</span>
-                                {v.normalized_size && (
-                                  <span className="text-zinc-500 ml-2">({v.normalized_size})</span>
-                                )}
-                              </div>
-                              <div className="text-right shrink-0">
-                                <div className={`font-medium ${isCheapestInGroup ? "text-emerald-400" : ""}`}>
-                                  {formatPrice(v.price)}
-                                </div>
-                                {v.display_per_unit && (
-                                  <div className="text-xs text-zinc-500">{v.display_per_unit}</div>
-                                )}
-                                <span className="text-xs text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1 inline-block">
-                                  ver detalhes →
-                                </span>
-                              </div>
-                            </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : relatedProducts.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              {relatedProducts.map((p) => {
-                const pIsGlobalBest = isGlobalBestPerUnit(p);
-
-                return (
-                  <Link
-                    key={p.product_id}
-                    href={`/generics/${encodeURIComponent(decodedTerm)}/${p.product_id}`}
-                    className="group block bg-zinc-900 border border-zinc-800 hover:border-emerald-500 rounded-lg px-5 py-5 transition-colors"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative">
-                      {pIsGlobalBest && (
-                        <div className="absolute -top-2 right-4 bg-zinc-950 px-1">
-                          <div className="bg-amber-500 text-zinc-950 text-[10px] font-bold px-2.5 py-0.5 rounded">
-                            melhor por unidade
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[15px] text-zinc-100 group-hover:text-emerald-400 transition-colors truncate">
-                          {p.name}
-                        </p>
-                        <div className="flex flex-wrap gap-2 mt-2 text-xs">
-                          <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
-                            {STORES[p.store as keyof typeof STORES]?.label ?? p.store}
-                          </span>
-                          {p.parsed_brand && (
-                            <span className="px-2 py-0.5 rounded bg-zinc-800/70 text-zinc-500 border border-zinc-800">
-                              {p.parsed_brand}
-                            </span>
-                          )}
-                          {p.normalized_size && (
-                            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                              {p.normalized_size}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <p className="text-emerald-400 font-bold text-[20px]">
-                          {formatPrice(p.price)}
-                        </p>
-                        {p.display_per_unit && (
-                          <p className="text-xs text-zinc-500">{p.display_per_unit}</p>
-                        )}
-                        <span className="text-xs text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity mt-2 inline-block">
-                          ver detalhes →
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-zinc-600 text-sm">Nenhuma variação encontrada.</p>
-          )}
+          <GenericProductList
+            termEncoded={encodeURIComponent(decodedTerm)}
+            isGrouped={isGrouped!}
+            groups={isGrouped ? relatedGroups : undefined}
+            products={!isGrouped ? relatedProducts : undefined}
+            minPricePerUnit={minPricePerUnit}
+            mainProductCanonicalKey={mainProductCanonicalKey}
+          />
         </div>
 
         <IntelFooter className="mt-10" />
