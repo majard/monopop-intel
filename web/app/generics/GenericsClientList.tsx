@@ -10,6 +10,7 @@ import { ESSENTIALS } from '@/constants/essentials';
 
 const ESSENTIALS_SET = new Set(ESSENTIALS);
 
+const normalize = (s: string) => s.normalize("NFD").trim().replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 function GenericCard({ generic, count, with_size }: GenericSummary) {
   return (
@@ -53,11 +54,11 @@ export default function GenericsClientList({ generics }: { generics: GenericSumm
 
   // Filter runs on query change only — no re-sort
   const { filteredEssentials, filteredRest } = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalize(query);
     if (!q) return { filteredEssentials: essentialItems, filteredRest: restSorted };
     return {
-      filteredEssentials: essentialItems.filter(g => g.generic.toLowerCase().includes(q)),
-      filteredRest: restSorted.filter(g => g.generic.toLowerCase().includes(q)),
+      filteredEssentials: essentialItems.filter(g => normalize(g.generic).includes(q)),
+      filteredRest: restSorted.filter(g => normalize(g.generic).includes(q)),
     };
   }, [essentialItems, restSorted, query]);
 
@@ -123,7 +124,7 @@ export default function GenericsClientList({ generics }: { generics: GenericSumm
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {visible.filter(g => !ESSENTIALS_SET.has(g.generic)).map(g => <GenericCard key={g.generic} {...g} />)}
           </div>
-          {hasMore && <ShowMoreButton visibleCount={visibleCount} filteredLength={filteredRest.length} setVisibleCount={setVisibleCount} />}
+          {hasMore && <ShowMoreButton visibleCount={visibleCount} filteredLength={allFiltered.length} setVisibleCount={setVisibleCount} />}
         </>
       )}
 
