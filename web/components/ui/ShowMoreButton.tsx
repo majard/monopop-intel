@@ -6,7 +6,7 @@ interface ShowMoreButtonProps {
   filteredLength: number;
 }
 
-export const PAGE_SIZE = 20;
+export const PAGE_SIZE = 32;
 
 export function ShowMoreButton({ visibleCount, setVisibleCount, filteredLength }: ShowMoreButtonProps) {
   const hiddenCount = filteredLength - visibleCount;
