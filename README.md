@@ -65,6 +65,17 @@ GitHub Actions (hourly)
   `max_results`; acts as a reject-filter, not a normalizer
 - Retention: 90 days
 
+### Generics (Layer 3 — parsed fields on `products`)
+- Schema: five new nullable columns added to `products`:
+  `generic_name`, `parsed_brand`, `package_size`, `unit`, `is_noise`
+- Parser: `api/parsers/product_normalizer.py` — `clean_and_classify()` normalises
+  raw product names against allow-list terms using fuzzy matching, extracts
+  package size/unit (including Brazilian formats), and infers brand
+- Backfill: `backfill_clean_generics.py` — idempotent async script; supports
+  `--force`, `--batch`, and `--limit` for incremental runs
+- Noise filtering: `is_noise=true` products are excluded by default from
+  `/generics/{term}` responses (`exclude_noise=true`)
+
 ## Technical highlights
 
 - **Parallel async fetch with per-store concurrency control** — `asyncio.Semaphore`
@@ -84,6 +95,18 @@ GitHub Actions (hourly)
   ensures stable pagination across independent store results
 - **Zero-auth data acquisition** — VTEX public API returns clean JSON with no
   scraping required
+- **Fuzzy generic matching** — `clean_and_classify()` scores each product name
+against all allow-list terms using salience checks and a fuzzy ratio threshold;
+selects the best match as `generic_name`, enabling normalised grouping across
+stores and brand variants
+- **Cross-store canonical grouping** — `make_canonical_key()` normalises
+  brand (NFKD accent strip + lowercase), package size (2-decimal string),
+  and unit into a pipe-delimited key; the `/generics/{term}` endpoint groups
+  products across stores by `brand_size`, `size_only`, or `brand_only` and
+  exposes `price_stats` (min/max/avg) per group
+- **Price-per-unit normalisation** — `price_per_unit` is derived per product
+  from `price / package_size` with threshold-based `g`/`ml` rescaling;
+  the best-per-unit variant is labelled across both flat and grouped views
 
 ## Current coverage
 
@@ -110,6 +133,20 @@ python cron.py                # full scrape
 python cron.py --retry        # retry last 24h failures
 python cron.py --limit 5      # scrape first 5 terms only (dev/debug)
 
+# Generics backfill (after schema migration)
+cd api
+python backfill_clean_generics.py            # backfill all products with generic_name IS NULL
+python backfill_clean_generics.py --force    # re-parse all rows
+python backfill_clean_generics.py --limit 500 --batch 100  # dev/debug
+
+# Dry-run the parser against live DB data
+python dry_run_parser.py                     # random 3 terms, 10 products each
+python dry_run_parser.py --term chocolate --products 20
+python dry_run_parser.py --num-terms 5 --verbose 4
+
+# Extract canonical brand list from DB
+python extract_brands.py                     # writes parsers/brands.json
+
 # Web
 cd web
 npm install
@@ -128,18 +165,18 @@ Required env vars:
 🌱 v0.2 — 3 stores live, SQLite reactive cache, price history foundation:
 🌱 v0.3 — Price history read layer shipped: API endpoints + full history UI
   (`/history`, `/history/{term}`, `/history/{term}/{product_id}`)
+🌱 v0.4 — Generics layer + cross-store comparison shipped:
+  product name normalisation, brand/size parsing, backfill pipeline,
+  cross-store canonical grouping (`brand_size` / `size_only` / `brand_only`),
+  price-per-unit sorting, and new `/generics`, `/generics/{term}`,
+  `/generics/{term}/{product_id}` API + UI ("básicos")
   
 PostgreSQL schema, daily cron, hourly retry, allow-list-driven scraping
 
-Limitations
-Current coverage is limited to stores with publicly accessible VTEX APIs.
-Price history coverage is limited to allow-listed terms (~210 canonical terms
-in `api/allow_list.json`); ad-hoc searches are not persisted.
-Stale cache fallback on VTEX failure is planned for v2.
-
 ## Limitations
-- Current coverage is limited to stores with publicly accessible VTEX APIs.
-- Price history read endpoints (/history) and the history UI are not yet
-  shipped — data is being collected; the query layer is next.
+- Coverage is limited to stores with publicly accessible VTEX APIs.
 - Stale cache fallback on VTEX failure is planned for v2.
-See NOTES.md for open engineering questions and design rationale.
+- 90-day price-point retention cleanup (daily cron DELETE) is not yet implemented
+  — see `NOTES.md` for open engineering questions.
+- Generic name parsing is v1; known gaps are documented in
+  `api/tests/test_product_normalizer.py` file header.

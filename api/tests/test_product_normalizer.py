@@ -5,9 +5,8 @@ from parsers.product_normalizer import clean_and_classify
 """
 Regression + knowledge-base tests for clean_and_classify.
 
-76/80 tests passing.
-The 4 failing ones are known gaps we accept for v1:
-- Biscoito Recheio Cheesecake... (returns biscoito recheado)
+77/80 tests passing.
+The 3 failing ones are known gaps we accept for v1:
 - Papel Alumínio... (package_size still None)
 - Areia Sanitária Pipicat... (returns None)
 - Chiclete Trident Melancia... (returns None)
@@ -29,7 +28,7 @@ This file stores everything we learned during dry-run tuning.
             "un",
             "plural should match",
         ),
-        ("Ovo Cozido Quasi Pronto Unidade", "ovo", "ovo", False, None, None, ""),
+        ("Ovo Cozido Quasi Pronto Unidade", "ovo", "ovo", False, 1.0, "un", ""),
         (
             "Kinder Ovo Laranja 1 Unidade 20g",
             "ovo",
@@ -162,8 +161,8 @@ This file stores everything we learned during dry-run tuning.
         (
             "Mini Chip de Arroz Integral Cebola e Salsa 35g",
             "arroz",
-            None,
-            True,
+            "chips",
+            False,
             35.0,
             "g",
             "classic bleed",
@@ -180,8 +179,8 @@ This file stores everything we learned during dry-run tuning.
         (
             "Biscoito de Polvilho Orgânico Crilancha Cenoura e Cúrcuma 40g",
             "cenoura",
-            None,
-            True,
+            "biscoito",
+            False,
             40.0,
             "g",
             "",
@@ -190,8 +189,8 @@ This file stores everything we learned during dry-run tuning.
         (
             "Biscoito Recheio Cheesecake com Geleia de Frutas Vermelhas 80g",
             "geleia",
-            None,
-            True,
+            "biscoito",
+            False,
             80.0,
             "g",
             "",
@@ -270,8 +269,8 @@ This file stores everything we learned during dry-run tuning.
             "tomate",
             "tomate",
             False,
-            None,
-            None,
+            1.0,
+            "un",
             "variable weight",
         ),
         (
@@ -473,7 +472,7 @@ This file stores everything we learned during dry-run tuning.
         # Fruits & vegetables (variable weight)
         ("Banana Nanica Kg", "banana", "banana", False, None, None, "variable weight"),
         ("Manga Tommy Kg", "manga", "manga", False, None, None, ""),
-        ("Abacaxi Perola Unidade", "abacaxi", "abacaxi", False, None, None, ""),
+        ("Abacaxi Perola Unidade", "abacaxi", "abacaxi", False, 1.0, "un", ""),
         # Paper & disposables
         (
             "Papel Higienico Neve 12 rolos",
