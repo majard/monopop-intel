@@ -127,7 +127,7 @@ async def run_cron(retry_mode: bool = False, limit: int | None = None) -> None:
               print(f"[warn] Revalidation failed: {e}")
       else:
           print("[skip] No REVALIDATE_TOKEN set, skipping revalidation")
-    await close_pool()
+      await close_pool()
 
 
 if __name__ == "__main__":

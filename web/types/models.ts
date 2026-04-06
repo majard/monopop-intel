@@ -79,4 +79,4 @@ export interface GenericResponse {
 
 export type StoreKey = 'prezunic' | 'zonasul' | 'hortifruti';
 export type PricingStrategy = 'none' | 'price' | 'price_per_unit';
-export type UnitSymbol = 'g' | 'kg' | 'ml' | 'L' | 'un';
+export type UnitSymbol = 'g' | 'kg' | 'ml' | 'l' | 'un';

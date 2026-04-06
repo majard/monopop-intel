@@ -9,7 +9,7 @@ interface ShowMoreButtonProps {
 export const PAGE_SIZE = 32;
 
 export function ShowMoreButton({ visibleCount, setVisibleCount, filteredLength }: ShowMoreButtonProps) {
-  const hiddenCount = filteredLength - visibleCount;
+  const hiddenCount = Math.max(0, filteredLength - visibleCount);
   const batchSize = Math.min(hiddenCount, visibleCount);
 
   return (

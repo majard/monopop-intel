@@ -9,7 +9,10 @@ Market price intelligence for the Monopop ecosystem.
 Tracks supermarket prices in Rio de Janeiro so you know what the market charges
 today — and what it charged last week. Search across multiple supermarkets
 simultaneously, sort by price, paginate through results, and query price history
-for any tracked product over time.
+for any tracked product over time. Browse normalised generic product pages to
+compare prices across stores and brand variants, and manage shopping lists that
+you can populate from generics, pin to specific store prices, and export as
+Monopop-compatible JSON or text ready to paste anywhere else.
 
 ## Why it exists
 
@@ -107,6 +110,21 @@ stores and brand variants
 - **Price-per-unit normalisation** — `price_per_unit` is derived per product
   from `price / package_size` with threshold-based `g`/`ml` rescaling;
   the best-per-unit variant is labelled across both flat and grouped views
+- **localStorage shopping lists** — `useShoppingLists` hook persists multiple
+  named lists under `mintel-shopping-lists`; no auth, no server state; items
+  carry `genericName`, quantity, optional `productId` pin, `pinnedPrice`, and
+  preferred size/unit for export price resolution
+- **Paste-driven fuzzy import** — free-text lists are line-tokenised and scored
+  against known generics using a blended similarity metric (bigram Dice
+  coefficient + token overlap + Levenshtein); mid-confidence matches (55–89)
+  surface a per-line review step before committing
+- **ISR cache revalidation** — `cron.py` and `backfill_clean_generics.py` POST
+  to `/api/revalidate` with `x-revalidate-token` after writes, invalidating the
+  Next.js ISR cache for `/generics` and `/history` without a full redeploy
+- **Monopop export** — `buildShoppingListExport` resolves per-store prices for
+  each list item (pinned price, or best `price` / `price_per_unit` from the
+  generics cache) and emits a typed `MonopopExport` JSON payload with
+  categories, stores, products, inventory items, and shopping list items
 
 ## Current coverage
 
@@ -170,6 +188,12 @@ Required env vars:
   cross-store canonical grouping (`brand_size` / `size_only` / `brand_only`),
   price-per-unit sorting, and new `/generics`, `/generics/{term}`,
   `/generics/{term}/{product_id}` API + UI ("básicos")
+🌱 v0.5 — Shopping Lists + Generics UI shipped:
+  session-only multi-list manager (`/shopping-lists`), paste-driven fuzzy
+  import, variant pinning with price lock, Monopop JSON export with store
+  price fill strategies; full Generics browsing UI (`/generics`,
+  `/generics/{term}`, `/generics/{term}/{product_id}`); sitemap; support page;
+  ISR revalidation endpoint; allow-list expanded with 9 new terms
   
 PostgreSQL schema, daily cron, hourly retry, allow-list-driven scraping
 

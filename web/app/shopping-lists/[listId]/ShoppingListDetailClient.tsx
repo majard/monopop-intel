@@ -61,7 +61,12 @@ function AtmPriceInput({
       value={display}
       placeholder="0,00"
       onKeyDown={handleKeyDown}
-      onChange={() => { }}
+      onChange={(e) => {
+        const digits = e.target.value.replace(/\D/g, '').slice(-5);
+        const next = digits ? Number.parseInt(digits, 10) : 0;
+        setCents(next);
+        onChange(next > 0 ? next / 100 : undefined);
+      }}
       className={className}
     />
   );

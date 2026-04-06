@@ -31,10 +31,12 @@ export default function FilterSelect({
         router.push(`?${params.toString()}`);
     };
 
+    const value = searchParams.get(name) ?? defaultValue;
+
     return (
         <select
             name={name}
-            defaultValue={defaultValue}
+            value={value}
             onChange={handleChange}
             className={`bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 ${className}`}
         >

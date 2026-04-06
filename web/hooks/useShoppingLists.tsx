@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useContext, createContext } from 'react';
+import { useState, useEffect, useCallback, useRef, useContext, createContext, ReactNode } from 'react';
 import type { ShoppingListItem, ShoppingList } from '@/types/models';
 
 export type { ShoppingListItem, ShoppingList };
@@ -13,7 +13,7 @@ type ShoppingListsContextValue = ReturnType<typeof useShoppingListsInternal>;
 
 export const ShoppingListsContext = createContext<ShoppingListsContextValue | null>(null);
 
-export function ShoppingListsProvider({ children }: { children: React.ReactNode }) {
+export function ShoppingListsProvider({ children }: { children: ReactNode }) {
   const value = useShoppingListsInternal();
   return (
     <ShoppingListsContext.Provider value= { value } >
@@ -34,6 +34,7 @@ function useShoppingListsInternal() {
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const isInitialized = useRef(false);
   const [isReady, setIsReady] = useState(false);
+  const lastAddedIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isInitialized.current) return;
@@ -97,25 +98,42 @@ function useShoppingListsInternal() {
   }, []);
 
   const addItem = useCallback((listId: string, item: Omit<ShoppingListItem, 'id'>): string => {
-    const existing = lists
-      .find(l => l.id === listId)
-      ?.items.find(i => i.genericName.toLowerCase() === item.genericName.toLowerCase());
-    if (existing) return existing.id;
-
-    const newItem: ShoppingListItem = {
-      ...item,
-      id: `item-${Date.now()}-${Math.floor(Math.random() * 1000000)}`,
-      quantity: item.quantity || 1,
-    };
-    setLists(prev =>
-      prev.map(l =>
+    let resultId: string | null = null;
+    
+    setLists(prev => {
+      const targetList = prev.find(l => l.id === listId);
+      if (!targetList) return prev;
+      
+      const existing = targetList.items.find(
+        i => i.genericName.toLowerCase() === item.genericName.toLowerCase()
+      );
+      
+      if (existing) {
+        resultId = existing.id;
+        return prev; // No change needed
+      }
+      
+      // Create new item
+      const newItem: ShoppingListItem = {
+        ...item,
+        id: `item-${Date.now()}-${Math.floor(Math.random() * 1000000)}`,
+        quantity: item.quantity || 1,
+      };
+      
+      resultId = newItem.id;
+      
+      // Update the list with the new item
+      return prev.map(l =>
         l.id === listId
           ? { ...l, items: [...l.items, newItem], updatedAt: new Date().toISOString() }
           : l
-      )
-    );
-    return newItem.id;
-  }, [lists]);
+      );
+    });
+    
+    // Store the result in ref for synchronous access
+    lastAddedIdRef.current = resultId;
+    return resultId!;
+  }, []);
 
   const pinVariantToItem = useCallback((
     listId: string,

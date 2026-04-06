@@ -290,7 +290,7 @@ export default async function Home({
             <Link href={"/history"} className="text-zinc-600 hover:text-zinc-400 underline transition-colors">
               histórico de termos
             </Link>
-            , e de{' '}
+            , de{' '}
             <Link href="/generics" className="text-zinc-600 hover:text-zinc-400 underline transition-colors">
               básicos monitorados
             </Link>

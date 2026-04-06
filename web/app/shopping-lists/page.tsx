@@ -195,13 +195,13 @@ function ShoppingListsPage() {
                     {/* Action buttons */}
                     {!isRenaming && !isDeleting && (
                       <div
-                        className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity flex-shrink-0"
                         onClick={e => e.stopPropagation()}
                       >
                         <button
                           onClick={e => handleExport(e, list)}
                           title="Exportar JSON"
-                          className="p-2 text-zinc-600 hover:text-emerald-400 transition-colors cursor-pointer rounded-lg hover:bg-zinc-800"
+                          className="p-2 text-zinc-600 hover:text-emerald-400 transition-colors cursor-pointer rounded-lg hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus-visible:ring-2 focus-visible:ring-emerald-500/50"
                         >
                           <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
                             <path d="M7 1v8M4 6.5l3 3 3-3M2 12h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
@@ -210,7 +210,7 @@ function ShoppingListsPage() {
                         <button
                           onClick={e => startRename(e, list)}
                           title="Renomear"
-                          className="p-2 text-zinc-600 hover:text-zinc-300 transition-colors cursor-pointer rounded-lg hover:bg-zinc-800"
+                          className="p-2 text-zinc-600 hover:text-zinc-300 transition-colors cursor-pointer rounded-lg hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-400/50 focus-visible:ring-2 focus-visible:ring-zinc-400/50"
                         >
                           <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
                             <path d="M9.5 2.5l2 2-7 7H2.5v-2l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
@@ -219,7 +219,7 @@ function ShoppingListsPage() {
                         <button
                           onClick={e => { e.stopPropagation(); setDeletingId(list.id); setRenamingId(null); }}
                           title="Excluir"
-                          className="p-2 text-zinc-600 hover:text-red-400 transition-colors cursor-pointer rounded-lg hover:bg-zinc-800"
+                          className="p-2 text-zinc-600 hover:text-red-400 transition-colors cursor-pointer rounded-lg hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus-visible:ring-2 focus-visible:ring-red-500/50"
                         >
                           <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
                             <path d="M2 4h10M5 4V3a1 1 0 011-1h2a1 1 0 011 1v1M9 4v7a1 1 0 01-1 1H6a1 1 0 01-1-1V4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
