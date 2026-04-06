@@ -177,6 +177,9 @@ Required env vars:
 | Variable | Description |
 |----------|-------------|
 | DATABASE_URL | PostgreSQL connection string |
+| REVALIDATE_TOKEN | Shared secret for `/api/revalidate` ISR cache invalidation |
+| WEB_URL | Base URL of the Next.js app (used by cron + backfill to POST revalidation) |
+| NEXT_PUBLIC_API_URL | FastAPI base URL consumed by the Next.js frontend |
 
 ## Status
 🌱 v0.1 — MVP: reactive search across 2 supermarkets, sort, pagination
