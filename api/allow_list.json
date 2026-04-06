@@ -46,6 +46,10 @@
             "category": "graos_massas"
         },
         {
+            "term": "macarrao instantaneo",
+            "category": "graos_massas"
+        },
+        {
             "term": "macarrao",
             "category": "graos_massas",
             "max_results": 130
@@ -761,7 +765,7 @@
             "category": "higiene"
         },
         {
-            "term": "pasta de dente",
+            "term": "creme dental",
             "category": "higiene"
         },
         {
@@ -845,6 +849,10 @@
             "category": "padaria_cereais"
         },
         {
+            "term": "pao",
+            "category": "padaria_cereais"
+        },
+        {
             "term": "biscoito cream cracker",
             "category": "padaria_cereais"
         },
@@ -854,6 +862,14 @@
         },
         {
             "term": "biscoito recheado",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "biscoito",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "chips",
             "category": "padaria_cereais"
         },
         {
@@ -887,10 +903,6 @@
         },
         {
             "term": "cereal",
-            "category": "padaria_cereais"
-        },
-        {
-            "term": "macarrao instantaneo",
             "category": "padaria_cereais"
         },
         {

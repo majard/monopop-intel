@@ -1,103 +1,55 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import { Suspense } from 'react';
+import GenericsClientList from './GenericsClientList';
+import { ShoppingListsProvider } from '@/hooks/useShoppingLists';
+
+export const metadata = {
+  title: 'Básicos',
+  description: 'Todos os produtos básicos com comparação de preços entre supermercados do Rio.',
+};
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-interface GenericSummary {
-  generic: string;
-  count: number;
-  with_size: number;
-  noise_count: number;
-}
-
-async function fetchGenerics(q?: string): Promise<GenericSummary[]> {
+async function fetchGenerics() {
+  if (!API) return [];
   try {
-    const params = q ? `?q=${encodeURIComponent(q)}` : "";
-    const res = await fetch(`${API}/generics${params}`, { cache: "no-store" });
-    if (!res.ok) return [];
-
+    const res = await fetch(`${API}/generics`, { next: { revalidate: 14400 } });
+    if (!res.ok) {
+      if (res.status === 404) return [];
+      throw new Error(`fetchGenerics failed: ${res.status} ${res.statusText}`);
+    }
     const data = await res.json();
-    
-    // ←←← THIS IS THE FIX
-    return Array.isArray(data.generics) ? data.generics : [];
-  } catch {
-    return [];
+    return data.generics ?? [];
+  } catch (error) {
+    console.error("fetchGenerics failed", error);
+    return null;
   }
 }
 
-function timeAgo(iso: string, now: number): string {
-  const diff = now - new Date(iso).getTime();
-  const h = Math.floor(diff / 3600000);
-  const d = Math.floor(h / 24);
-  if (d > 0) return `há ${d}d`;
-  if (h > 0) return `há ${h}h`;
-  return "agora";
-}
-
-export default async function GenericsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string }>;
-}) {
-  const params = await searchParams;
-  const filter = (params.q ?? "").toLowerCase().trim();
-
-  const allGenerics = await fetchGenerics(filter);   // now always an array
-
-  const now = Date.now();
-
+export default async function GenericsPage() {
+  const generics = await fetchGenerics();
+  const isError = generics === null;
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono">
-      <div className="max-w-3xl mx-auto px-6 py-16">
+      <div className="max-w-4xl mx-auto px-6 py-6">
         <div className="mb-10">
-          <h1 className="text-xl font-bold text-white">básicos</h1>
-          <p className="text-zinc-500 text-sm mt-1">
-            {allGenerics.length} itens normalizados · cesta básica expandida
-          </p>
+          <h1 className="text-2xl font-bold text-white">Básicos</h1>
+          {!isError && (
+            <p className="text-zinc-600 text-sm mt-1">
+              {generics.length} itens básicos monitorados · atualizado diariamente
+            </p>
+          )}
         </div>
 
-        <form method="GET" className="flex gap-2 mb-8">
-          <input
-            type="text"
-            name="q"
-            defaultValue={filter}
-            placeholder="filtrar básicos... (arroz, leite...)"
-            className="flex-1 sm:w-72 bg-zinc-900 border border-zinc-700 rounded px-4 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-emerald-500"
-          />
-          <button
-            type="submit"
-            className="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 px-4 py-2 rounded text-sm transition-colors"
-          >
-            buscar
-          </button>
-        </form>
-
-        {allGenerics.length === 0 ? (
-          <p className="text-zinc-600 text-sm">nenhum básico encontrado.</p>
+        {isError ? (
+          <div className="text-red-500 text-sm">Erro ao carregar itens básicos</div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {allGenerics.map((g) => {
-              const sizePct = g.count > 0 ? Math.round((g.with_size / g.count) * 100) : 0;
-              return (
-                <Link
-                  key={g.generic}
-                  href={`/generics/${encodeURIComponent(g.generic)}`}
-                  className="group bg-zinc-900 border border-zinc-800 hover:border-emerald-500 rounded px-4 py-3 transition-colors"
-                >
-                  <p className="text-sm text-zinc-100 group-hover:text-white font-bold truncate">
-                    {g.generic}
-                  </p>
-                  <p className="text-xs text-zinc-500 mt-1">
-                    {g.count} produtos
-                  </p>
-                  <p className="text-xs text-emerald-400/70 mt-0.5">
-                    {sizePct}% com tamanho
-                  </p>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+          <Suspense fallback={
+            <div className="text-zinc-700 text-sm animate-pulse">carregando...</div>
+          }>
+            <ShoppingListsProvider>
+              <GenericsClientList generics={generics} />
+            </ShoppingListsProvider>
+          </Suspense>)}
       </div>
     </main>
   );

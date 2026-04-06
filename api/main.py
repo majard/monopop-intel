@@ -8,6 +8,8 @@ from cache import get_cached, init_db, make_query_key, purge_expired, set_cached
 from db import get_pool, init_schema
 from scraper.vtex import SORT_OPTIONS, STORES, search_async
 
+from fastapi.middleware.cors import CORSMiddleware
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,9 +27,59 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://monopop-intel.vercel.app",
+        "http://localhost:3000",
+    ],
+    allow_origin_regex=r"https://monopop-intel.*\.vercel\.app",
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
+
+async def enrich_with_generics(results: list[dict]) -> list[dict]:
+    """
+    Looks up generic_name and internal db id for each result by vtex_product_id + store.
+    Products not in DB get generic_name=None, db_id=None — frontend handles gracefully.
+    """
+    if not results:
+        return results
+
+    pool = await get_pool()
+    vtex_ids = [(r["product_id"], r["store"]) for r in results]
+
+    print("enriching with generics", vtex_ids)
+
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT vtex_product_id, store, id, generic_name
+            FROM products
+            WHERE (vtex_product_id, store) IN (
+                SELECT * FROM UNNEST($1::text[], $2::text[])
+            )
+            """,
+            [r[0] for r in vtex_ids],
+            [r[1] for r in vtex_ids],
+        )
+
+    print("rows", rows)
+    lookup = {(r["vtex_product_id"], r["store"]): r for r in rows}
+
+    enriched = []
+    for r in results:
+        match = lookup.get((r["product_id"], r["store"]))
+        enriched.append({
+            **r,
+            "db_id": match["id"] if match else None,
+            "generic_name": match["generic_name"] if match else None,
+        })
+    return enriched
 
 @app.get("/search")
 async def search_products(
@@ -70,6 +122,10 @@ async def search_products(
         }
 
     result = await search_async(q, store=store, sort=sort, page=page)
+    print("result", result)
+    page_results = await enrich_with_generics(result["results"])
+    result["results"] = page_results
+
     await set_cached(query_key, store, q, result)
 
     return {**result, "_cache": {"hit": False}}
@@ -401,16 +457,18 @@ async def get_generics(
                 p.unit,
                 p.is_noise,
                 p.generic_name,
-                MAX(pp.price) as price,
-                bool_or(pp.available) as available
+                pp_latest.price,
+                pp_latest.list_price,
+                pp_latest.available
             FROM products p
-            LEFT JOIN price_points pp 
-                ON p.id = pp.product_id AND pp.scrape_date >= ${fresh_pos}
+            LEFT JOIN LATERAL (
+                SELECT price, list_price, available
+                FROM price_points
+                WHERE product_id = p.id AND scrape_date >= ${fresh_pos}
+                ORDER BY scrape_date DESC
+                LIMIT 1
+            ) pp_latest ON true
             WHERE {where_clause}
-            GROUP BY 
-                p.id, p.vtex_product_id, p.name, p.store, p.brand, p.ean, 
-                p.category, p.url, p.parsed_brand, p.package_size, p.unit, 
-                p.is_noise, p.generic_name
             """,
             *params,
         )
@@ -462,6 +520,9 @@ async def get_generics(
                 "url": r["url"],
                 "parsed_brand": r["parsed_brand"],
                 "price": price,
+                "list_price": float(r["list_price"])
+                if r["list_price"] is not None
+                else None,
                 "package_size": size,
                 "unit": unit,
                 "available": bool(r["available"])
@@ -565,6 +626,7 @@ async def get_generics(
                 "url": p.get("url"),
                 "parsed_brand": p.get("parsed_brand"),
                 "price": p["price"],
+                "list_price": p["list_price"],
                 "available": p["available"],
                 "price_per_unit": p["price_per_unit"],
                 "normalized_size": p["normalized_size"],

@@ -218,6 +218,9 @@ def extract_package_size_and_unit(name: str):
         except (ValueError, TypeError):
             continue
 
+    if re.search(r'\bunidade\b|\bunid\b', text, re.IGNORECASE):
+        return 1.0, 'un'
+
     return None, None
 
 
