@@ -140,6 +140,23 @@ async def backfill_clean_generics(force: bool = False, batch_size: int = 5000, l
     print(f"\nBackfill completed at {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("="*80)
 
+    import os
+    import httpx
+    revalidate_token = os.environ.get("REVALIDATE_TOKEN")
+    if revalidate_token:
+        try:
+            async with httpx.AsyncClient() as client:
+                
+                revalidate_url = f"{os.environ.get('WEB_URL')}/api/revalidate"
+                await client.post(
+                    revalidate_url,
+                    headers={"x-revalidate-token": revalidate_token}
+                )
+                
+            print("[done] Revalidation triggered")
+        except Exception as e:
+            print(f"[warn] Revalidation failed: {e}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fast + Rich Clean Generics Backfill v1")

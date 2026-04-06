@@ -865,6 +865,14 @@
             "category": "padaria_cereais"
         },
         {
+            "term": "biscoito",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "chips",
+            "category": "padaria_cereais"
+        },
+        {
             "term": "salgadinho",
             "category": "padaria_cereais"
         },
