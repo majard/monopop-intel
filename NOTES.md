@@ -204,6 +204,7 @@ For MVP: store everything, filter at display time via category.
   `max_results`
 - `specs/priceHistory.md` — full feature spec
 
+
 ---
 
 ## Open Questions
@@ -226,3 +227,16 @@ For MVP: store everything, filter at display time via category.
 6. **VTEX synonym/stemming behavior** — "aceto balsamico" vs "vinagre
    balsâmico" mismatch suggests undocumented search behavior. Worth
    investigating VTEX Intelligent Search documentation.
+
+7. **product_terms migration** — `term` on `price_points` means a product 
+   is only visible from the term that scraped it first on a given day. 
+   The correct model is a separate `product_terms(product_id, term)` 
+   join table, with `term` dropped from `price_points`. This makes products 
+   visible from all terms that have ever scraped them, regardless of which 
+   term "owns" a given day's price_point. Deferred — backfill becomes 
+   worthwhile once allow-list is stable and enough history has accumulated 
+   under consistent terms. Known side effect: removing a term from the 
+   allow-list orphans its historical price_points from the read path.
+
+8. **Retention cleanup not yet implemented** — the spec calls for a 90-day 
+   DELETE in the daily cron but it hasn't been added to cron.py yet.

@@ -8,6 +8,7 @@ on:
 jobs:
   retry:
     runs-on: ubuntu-latest
+    environment: monopop-intel / production
     steps:
       - uses: actions/checkout@v4
 

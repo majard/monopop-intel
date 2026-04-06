@@ -266,3 +266,117 @@ async def history_by_product(
             for r in series
         ],
     }
+
+
+# ── Clean Generics v1 ───────────────────────────────────────────────────────
+
+
+@app.get("/generics")
+async def list_generics(
+    q: str = Query(None, description="Optional filter by generic name"),
+):
+    """List all unique generic_names with basic stats."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        query = """
+            SELECT 
+                generic_name as generic,
+                COUNT(*) as count,
+                COUNT(CASE WHEN package_size IS NOT NULL THEN 1 END) as with_size,
+                COUNT(CASE WHEN is_noise = true THEN 1 END) as noise_count
+            FROM products 
+            WHERE generic_name IS NOT NULL
+        """
+        params: list = []
+        if q and q.strip():
+            query += " AND generic_name ILIKE $1"
+            params.append(f"%{q.strip()}%")
+
+        query += " GROUP BY generic_name ORDER BY generic_name ASC"
+
+        rows = await conn.fetch(query, *params)
+
+    return [dict(r) for r in rows]
+
+
+@app.get("/generics/{term}")
+async def get_generics(
+    term: str,
+    store: str = Query(None, description="Filter by store (optional)"),
+    exclude_noise: bool = Query(True, description="Exclude noise items (default: true)")
+):
+    """
+    Clean generics v1 endpoint.
+    Returns latest fresh price per product, sorted like history.
+    """
+    if not term or not term.strip():
+        raise HTTPException(status_code=422, detail="Term cannot be empty")
+
+    pool = await get_pool()
+    fresh_cutoff = date.today() - timedelta(days=7)
+
+    where = ["p.generic_name = $1"]
+    params: list = [term]
+    i = 2
+
+    if exclude_noise:
+        where.append("p.is_noise = false")
+    if store:
+        where.append(f"p.store = ${i}")
+        params.append(store)
+        i += 1
+
+    where_clause = " AND ".join(where)
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(f"""
+            SELECT 
+                p.name,
+                p.store,
+                p.parsed_brand,
+                p.package_size,
+                p.unit,
+                p.is_noise,
+                MAX(pp.price) as price,
+                bool_or(pp.available) as available          -- Fixed: use bool_or instead of MAX
+            FROM products p
+            LEFT JOIN price_points pp 
+                ON p.id = pp.product_id 
+                AND pp.scrape_date >= $2
+            WHERE {where_clause}
+            GROUP BY p.id, p.name, p.store, p.parsed_brand, p.package_size, p.unit, p.is_noise
+        """, *params, fresh_cutoff)
+
+    # Build products list
+    products = []
+    for r in rows:
+        products.append({
+            "name": r["name"],
+            "store": r["store"],
+            "price": float(r["price"]) if r["price"] is not None else None,
+            "package_size": float(r["package_size"]) if r["package_size"] is not None else None,
+            "unit": r["unit"],
+            "parsed_brand": r["parsed_brand"],
+            "is_noise": r["is_noise"],
+            "available": bool(r["available"]) if r["available"] is not None else True,
+        })
+
+    # Sort exactly like history does
+    products.sort(
+        key=lambda x: (
+            not x["available"],                    # available first
+            x["price"] is None,                    # has price before no price
+            x["price"] or 0,                       # then cheapest first
+        )
+    )
+
+    return {
+        "generic": term,
+        "count": len(products),
+        "products": products,
+        "_meta": {
+            "fresh_cutoff": fresh_cutoff.isoformat(),
+            "excluded_noise": exclude_noise,
+            "store_filter": store,
+        }
+    }
