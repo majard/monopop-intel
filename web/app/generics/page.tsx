@@ -15,7 +15,11 @@ async function fetchGenerics(q?: string): Promise<GenericSummary[]> {
     const params = q ? `?q=${encodeURIComponent(q)}` : "";
     const res = await fetch(`${API}/generics${params}`, { cache: "no-store" });
     if (!res.ok) return [];
-    return res.json();
+
+    const data = await res.json();
+    
+    // ←←← THIS IS THE FIX
+    return Array.isArray(data.generics) ? data.generics : [];
   } catch {
     return [];
   }
@@ -38,11 +42,7 @@ export default async function GenericsPage({
   const params = await searchParams;
   const filter = (params.q ?? "").toLowerCase().trim();
 
-  // For now we fetch all and filter client-side (small dataset). Later we can add server-side if needed.
-  const allGenerics = await fetchGenerics();
-  const generics = filter
-    ? allGenerics.filter((g) => g.generic.toLowerCase().includes(filter))
-    : allGenerics;
+  const allGenerics = await fetchGenerics(filter);   // now always an array
 
   const now = Date.now();
 
@@ -72,11 +72,11 @@ export default async function GenericsPage({
           </button>
         </form>
 
-        {generics.length === 0 ? (
+        {allGenerics.length === 0 ? (
           <p className="text-zinc-600 text-sm">nenhum básico encontrado.</p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {generics.map((g) => {
+            {allGenerics.map((g) => {
               const sizePct = g.count > 0 ? Math.round((g.with_size / g.count) * 100) : 0;
               return (
                 <Link
