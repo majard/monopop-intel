@@ -74,4 +74,11 @@ async def init_schema() -> None:
                 error       TEXT,
                 scraped_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
+            -- Clean Generics v1 columns (nullable, fully backward compatible)
+            ALTER TABLE products 
+                ADD COLUMN IF NOT EXISTS generic_name TEXT,
+                ADD COLUMN IF NOT EXISTS parsed_brand TEXT,
+                ADD COLUMN IF NOT EXISTS package_size REAL,
+                ADD COLUMN IF NOT EXISTS unit TEXT,                    -- 'g', 'ml', 'un'
+                ADD COLUMN IF NOT EXISTS is_noise BOOLEAN DEFAULT FALSE;
         """)

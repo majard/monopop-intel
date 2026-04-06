@@ -8,7 +8,7 @@ interface TermSummary {
 
 async function fetchTerms(): Promise<TermSummary[]> {
     try {
-        const res = await fetch(`${API}/history/terms`, { cache: "no-store" });
+        const res = await fetch(`${API}/history/terms`, { next: { revalidate: 14400 } });
         if (!res.ok) return [];
         return res.json();
     } catch {

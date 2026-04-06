@@ -3,7 +3,7 @@ import json
 import unicodedata
 import argparse
 from pathlib import Path
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 from db import close_pool, get_pool, init_schema
 from history_writer import insert_price_points, log_scrape, upsert_products
@@ -47,7 +47,7 @@ async def scrape_term(entry: dict, store: str, today: date) -> None:
 
 
 async def run_cron(retry_mode: bool = False, limit: int | None = None) -> None:
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     total_concurrency = len(STORES) * CONCURRENCY_PER_STORE
     pool = await get_pool(max_concurrency=total_concurrency)
     await init_schema()
@@ -56,8 +56,10 @@ async def run_cron(retry_mode: bool = False, limit: int | None = None) -> None:
         allow_list_path = Path(__file__).parent / "allow_list.json"
         with open(allow_list_path) as f:
             data = json.load(f)
-
-        entries = data["terms"]
+        
+        # Sort entries: most specific (most words) first
+        # "arroz integral" (2 words) runs before "arroz" (1 word)
+        entries = sorted(data["terms"], key=lambda e: len(e["term"].split()), reverse=True)
         
         if limit:
             original_count = len(entries)
@@ -108,7 +110,24 @@ async def run_cron(retry_mode: bool = False, limit: int | None = None) -> None:
             print(f"[done] Scrape cycle complete. Total tasks: {len(tasks)}")
     
     finally:
-        await close_pool()
+      import os
+      import httpx
+      revalidate_token = os.environ.get("REVALIDATE_TOKEN")
+      if revalidate_token:
+          try:
+              async with httpx.AsyncClient() as client:
+                
+                revalidate_url = f"{os.environ.get('WEB_URL')}/api/revalidate"
+                await client.post(
+                    revalidate_url,
+                    headers={"x-revalidate-token": revalidate_token}
+                )                
+              print("[done] Revalidation triggered")
+          except Exception as e:
+              print(f"[warn] Revalidation failed: {e}")
+      else:
+          print("[skip] No REVALIDATE_TOKEN set, skipping revalidation")
+      await close_pool()
 
 
 if __name__ == "__main__":

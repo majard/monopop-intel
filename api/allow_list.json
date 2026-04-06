@@ -46,9 +46,17 @@
             "category": "graos_massas"
         },
         {
+            "term": "macarrao instantaneo",
+            "category": "graos_massas"
+        },
+        {
             "term": "macarrao",
             "category": "graos_massas",
             "max_results": 130
+        },
+        {
+            "term": "massa",
+            "category": "graos_massas"
         },
         {
             "term": "macarrao integral",
@@ -292,7 +300,11 @@
             "max_results": 210
         },
         {
-            "term": "coxa sobrecoxa",
+            "term": "sobrecoxa",
+            "category": "proteinas"
+        },
+        {
+            "term": "coxa",
             "category": "proteinas"
         },
         {
@@ -443,6 +455,10 @@
         },
         {
             "term": "queijo coalho",
+            "category": "laticinios_frios"
+        },
+        {
+            "term": "queijo minas",
             "category": "laticinios_frios"
         },
         {
@@ -749,7 +765,7 @@
             "category": "higiene"
         },
         {
-            "term": "pasta de dente",
+            "term": "creme dental",
             "category": "higiene"
         },
         {
@@ -805,7 +821,7 @@
             "category": "pet"
         },
         {
-            "term": "racao de cachorro",
+            "term": "racao de cao",
             "category": "pet"
         },
         {
@@ -833,6 +849,10 @@
             "category": "padaria_cereais"
         },
         {
+            "term": "pao",
+            "category": "padaria_cereais"
+        },
+        {
             "term": "biscoito cream cracker",
             "category": "padaria_cereais"
         },
@@ -842,6 +862,14 @@
         },
         {
             "term": "biscoito recheado",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "biscoito",
+            "category": "padaria_cereais"
+        },
+        {
+            "term": "chips",
             "category": "padaria_cereais"
         },
         {
@@ -866,11 +894,15 @@
             "max_results": 420
         },
         {
+            "term": "ovo de pascoa",
+            "category": "padaria_cereais"
+        },
+        {
             "term": "barra de cereal",
             "category": "padaria_cereais"
         },
         {
-            "term": "miojo",
+            "term": "cereal",
             "category": "padaria_cereais"
         },
         {

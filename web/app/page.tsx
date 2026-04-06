@@ -1,3 +1,6 @@
+import { STORES } from "@/constants/stores";
+import Link from "next/link";
+
 interface Product {
   store: string;
   product_id: string;
@@ -10,6 +13,8 @@ interface Product {
   url: string;
   measurement_unit: string | null;
   unit_multiplier: number | null;
+  db_id: number | null;
+  generic_name: string | null;
 }
 
 interface SearchResult {
@@ -51,12 +56,6 @@ const SORT_LABELS: Record<string, string> = {
   name_desc: "z → a",
 };
 
-const STORE_LABELS: Record<string, string> = {
-  prezunic: "Prezunic",
-  zonasul: "Zona Sul",
-  hortifruti: "Hortifruti",
-  all: "Todas as lojas",
-};
 
 function buildUrl(params: Record<string, string>) {
   return `?${new URLSearchParams(params).toString()}`;
@@ -139,7 +138,7 @@ export default async function Home({
               {data.total ? `${data.total} resultado${data.total !== 1 ? "s" : ""} · ` : ""}
               página {data.page}{totalPages ? ` de ${totalPages}` : ""} ·{" "}
               <span className="text-emerald-400">"{data.query}"</span> em{" "}
-              <span className="text-zinc-300">{STORE_LABELS[data.store] ?? data.store}</span>
+              <span className="text-zinc-300">{STORES[data.store as keyof typeof STORES]?.label ?? data.store}</span>
               {data._cache?.hit && (
                 <span className="text-zinc-600"> · cache {data._cache.age_seconds}s</span>
               )}
@@ -150,49 +149,82 @@ export default async function Home({
               <p className="text-zinc-600 text-sm">nenhum resultado encontrado.</p>
             ) : (
               <div className="flex flex-col gap-3">
-                {data.results.map((product) => (
-                  <a
-                    key={`${product.store}-${product.product_id}`}
-                    href={product.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex items-center justify-between bg-zinc-900 border border-zinc-800 hover:border-emerald-500 rounded px-5 py-4 transition-colors"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm text-zinc-100 group-hover:text-white">
-                          {product.name}
+                {data.results.map((product) => {
+                  const genericHref =
+                    product.db_id && product.generic_name
+                      ? `/generics/${encodeURIComponent(product.generic_name)}/${product.db_id}`
+                      : null;
+
+                  const CardWrapper = ({ children }: { children: React.ReactNode }) =>
+                    genericHref ? (
+                      <Link
+                        href={genericHref}
+                        className="group flex items-center justify-between bg-zinc-900 border border-zinc-800 hover:border-emerald-500 rounded px-5 py-4 transition-colors"
+                      >
+                        {children}
+                      </Link>
+                    ) : (
+
+                      <a
+                        href={product.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex items-center justify-between bg-zinc-900 border border-zinc-800 hover:border-emerald-500 rounded px-5 py-4 transition-colors"
+                      >
+                        {children}
+                      </a>
+                    );
+
+                  return (
+                    <CardWrapper key={`${product.store}-${product.product_id}`}>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm text-zinc-100 group-hover:text-white">
+                            {product.name}
+                          </p>
+                          {genericHref && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                              Comparar preços →
+                            </span>
+                          )}
+                          {store === 'all' && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                              {STORES[product.store as keyof typeof STORES]?.label ?? product.store}
+                            </span>
+                          )}
+                          {product.list_price !== null &&
+                            product.price !== null &&
+                            product.list_price > product.price && (
+                              <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                oferta
+                              </span>
+                            )}
+                          {!product.available && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
+                              indisponível
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-zinc-500 mt-0.5">{product.brand}</p>
+                      </div>
+                      <div className="text-right ml-4 shrink-0">
+                        <p className="text-emerald-400 font-bold">
+                          {formatPrice(product.price)}
                         </p>
-                        {store === "all" && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
-                            {STORE_LABELS[product.store] ?? product.store}
-                          </span>
-                        )}
-                        {product.list_price !== null && product.price !== null && product.list_price > product.price && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            oferta
-                          </span>
-                        )}
-                        {!product.available && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
-                            indisponível
-                          </span>
+                        {product.list_price !== null &&
+                          product.price !== null &&
+                          product.list_price > product.price && (
+                            <p className="text-xs text-zinc-600 line-through">
+                              {formatPrice(product.list_price)}
+                            </p>
+                          )}
+                        {!genericHref && (
+                          <p className="text-[10px] text-zinc-700 mt-0.5">ver na loja ↗</p>
                         )}
                       </div>
-                      <p className="text-xs text-zinc-500 mt-0.5">{product.brand}</p>
-                    </div>
-                    <div className="text-right ml-4 shrink-0">
-                      <p className="text-emerald-400 font-bold">
-                        {formatPrice(product.price)}
-                      </p>
-                      {product.list_price !== null && product.price !== null && product.list_price > product.price && (
-                        <p className="text-xs text-zinc-600 line-through">
-                          {formatPrice(product.list_price)}
-                        </p>
-                      )}
-                    </div>
-                  </a>
-                ))}
+                    </CardWrapper>
+                  );
+                })}
               </div>
             )}
 
@@ -248,12 +280,28 @@ export default async function Home({
         )}
 
         {data === null && !q && (
-          <p className="text-zinc-600 text-sm">
+          <p className="text-zinc-600 text-center text-sm">
             digite um produto pra começar.
+          </p>
+        )}
+        {!q && (
+          <p className="text-zinc-700 text-xs text-center mt-6">
+            ou explore o{' '}
+            <Link href={"/history"} className="text-zinc-600 hover:text-zinc-400 underline transition-colors">
+              histórico de termos
+            </Link>
+            , de{' '}
+            <Link href="/generics" className="text-zinc-600 hover:text-zinc-400 underline transition-colors">
+              básicos monitorados
+            </Link>
+            {' '}e crie uma{' '}
+            <Link href="/shopping-lists" className="text-zinc-600 hover:text-zinc-400 underline transition-colors">
+              lista de compras
+            </Link>
           </p>
         )}
 
       </div>
-    </main>
+    </main >
   );
 }
